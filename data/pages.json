@@ -1,0 +1,20 @@
+{
+  "test-rental": {
+    "slug": "test-rental",
+    "businessName": "TEST RENTAL PS",
+    "whatsappNumber": "62899999999",
+    "address": "Jalan Test Verify No. 123",
+    "logoText": "TEST RENTAL",
+    "themeColor": "#DC2626",
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  },
+  "rental-adam": {
+    "slug": "rental-adam",
+    "businessName": "RENTAL-ADAM",
+    "whatsappNumber": "6289688578285",
+    "address": "PUDAKPAYUNG SEMARANG",
+    "logoText": "GO-PLAY",
+    "themeColor": "#003791",
+    "createdAt": "2026-02-12T18:25:52.173Z"
+  }
+}
