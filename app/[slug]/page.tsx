@@ -1,4 +1,4 @@
-import LandingPage from '@/components/LandingPage';
+import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
 import { createClient } from '@/lib/supabase/server';
 
 interface PageProps {
@@ -39,12 +39,13 @@ export default async function DynamicPage({ params }: PageProps) {
     }
 
     return (
-        <LandingPage
+        <StoryBrandTemplate
             businessName={pageData.business_name}
             whatsappNumber={pageData.whatsapp_number}
             address={pageData.address}
             themeColor={pageData.theme_color}
             logoText={pageData.logo_text}
+            logoUrl={pageData.logo_url}
         />
     );
 }

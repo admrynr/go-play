@@ -13,7 +13,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { businessName, whatsappNumber, address, logoText, themeColor } = body;
+        const { businessName, whatsappNumber, address, logoText, logoUrl, themeColor, templateId } = body;
 
         // Generate a simple slug from business name
         let slug = businessName
@@ -50,7 +50,9 @@ export async function POST(request: Request) {
                 whatsapp_number: whatsappNumber,
                 address,
                 logo_text: logoText || businessName,
+                logo_url: logoUrl || null,
                 theme_color: themeColor || '#003791',
+                template_id: templateId || null,
             })
             .select()
             .single();

@@ -1,8 +1,8 @@
-import LandingPage from '@/components/LandingPage';
+import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
 
 export default function Home() {
   return (
-    <LandingPage
+    <StoryBrandTemplate
       businessName="GO-PLAY"
       address="Jalan Gaming No. 1, Jakarta Selatan"
       whatsappNumber="6281234567890"

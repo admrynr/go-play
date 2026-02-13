@@ -39,10 +39,17 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
-    // If user is logged in and tries to access /login, redirect to /builder
+    // Protect /admin route
+    if (request.nextUrl.pathname.startsWith('/admin') && !user) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        return NextResponse.redirect(url)
+    }
+
+    // If user is logged in and tries to access /login, redirect to /admin
     if (request.nextUrl.pathname === '/login' && user) {
         const url = request.nextUrl.clone()
-        url.pathname = '/builder'
+        url.pathname = '/admin'
         return NextResponse.redirect(url)
     }
 
@@ -50,5 +57,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/builder/:path*', '/login'],
+    matcher: ['/builder/:path*', '/login', '/admin/:path*'],
 }

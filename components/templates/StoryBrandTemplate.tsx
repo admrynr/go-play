@@ -6,21 +6,23 @@ import { Gamepad2, Tv, Zap, Box, CircleDollarSign, Menu, X, ChevronRight, Play, 
 import Link from 'next/link';
 import { CSSProperties } from 'react';
 
-interface LandingPageProps {
+interface StoryBrandTemplateProps {
     businessName?: string;
     whatsappNumber?: string;
     address?: string;
-    logoText?: string; // Optional custom logo text/icon
-    themeColor?: string; // Hex code
+    logoText?: string;
+    logoUrl?: string; // Uploaded logo image URL
+    themeColor?: string;
 }
 
-export default function LandingPage({
+export default function StoryBrandTemplate({
     businessName = "GO-PLAY",
     whatsappNumber = "6281234567890",
     address = "Jalan Gaming No. 1, Jakarta Selatan",
     logoText = "GO-PLAY",
+    logoUrl,
     themeColor = "#003791",
-}: LandingPageProps) {
+}: StoryBrandTemplateProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -49,12 +51,18 @@ export default function LandingPage({
             <header className="fixed top-0 w-full z-50 glass-panel border-b border-white/10 transition-all duration-300">
                 <div className="container mx-auto px-4 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="bg-primary/20 p-2 rounded-lg">
-                            <Gamepad2 className="w-6 h-6 text-primary" />
-                        </div>
-                        <span className="font-heading font-bold text-xl tracking-wider text-white">
-                            {businessName}
-                        </span>
+                        {logoUrl ? (
+                            <img src={logoUrl} alt={businessName} className="h-10 w-auto object-contain" />
+                        ) : (
+                            <>
+                                <div className="bg-primary/20 p-2 rounded-lg">
+                                    <Gamepad2 className="w-6 h-6 text-primary" />
+                                </div>
+                                <span className="font-heading font-bold text-xl tracking-wider text-white">
+                                    {logoText || businessName}
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     {/* Desktop Nav */}
@@ -369,8 +377,14 @@ export default function LandingPage({
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
                         <div className="lg:col-span-2">
                             <div className="flex items-center gap-2 mb-6">
-                                <Gamepad2 className="w-8 h-8 text-primary" />
-                                <span className="font-heading font-bold text-2xl tracking-wider text-white">{businessName}</span>
+                                {logoUrl ? (
+                                    <img src={logoUrl} alt={businessName} className="h-12 w-auto object-contain" />
+                                ) : (
+                                    <>
+                                        <Gamepad2 className="w-8 h-8 text-primary" />
+                                        <span className="font-heading font-bold text-2xl tracking-wider text-white">{logoText || businessName}</span>
+                                    </>
+                                )}
                             </div>
                             <p className="text-gray-500 max-w-sm leading-relaxed mb-6">
                                 Rental PS Modern dengan fasilitas terlengkap dan sistem digital pertama di kota ini.

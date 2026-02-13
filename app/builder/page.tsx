@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import LandingPage from '@/components/LandingPage';
+import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
 import { Save, Loader2, ExternalLink, LogOut, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -221,7 +221,7 @@ export default function BuilderPage() {
             but for now we just render it full sceren in this pane */}
                 <div className="origin-top-left transform scale-[0.8] md:scale-100 w-[125%] md:w-full h-full">
                     {/* Scale trick for mobile view simulation if needed, but simplistic is better */}
-                    <LandingPage {...formData} />
+                    <StoryBrandTemplate {...formData} />
                 </div>
             </div>
         </div>
