@@ -11,7 +11,8 @@ import {
     LogOut,
     Menu,
     X,
-    CreditCard
+    CreditCard,
+    BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -58,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { name: 'Menu & F&B', href: '/dashboard/menu', icon: UtensilsCrossed },
         { name: 'Kitchen Orders', href: '/dashboard/kitchen', icon: ChefHat },
         // { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
+        { name: 'Reports', href: '/dashboard/reports', icon: Monitor }, // Using Monitor temporary if BarChart3 fails, but let's try to stick to existing icons if needed or just use LayoutDashboard
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
     ];
 

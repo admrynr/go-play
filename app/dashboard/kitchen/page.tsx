@@ -53,7 +53,7 @@ export default function KitchenPage() {
           )
         `)
                 .eq('page_id', pid)
-                .neq('status', 'paid') // Show pending, preparing, served
+                .not('status', 'in', '("paid","completed")') // Hide paid/completed
                 .order('created_at', { ascending: false });
 
             setOrders(data || []);
@@ -95,8 +95,8 @@ export default function KitchenPage() {
                                     </span>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'pending' ? 'bg-primary text-white' :
-                                        order.status === 'served' ? 'bg-green-500 text-white' :
-                                            'bg-gray-500 text-white'
+                                    order.status === 'served' ? 'bg-green-500 text-white' :
+                                        'bg-gray-500 text-white'
                                     }`}>
                                     {order.status}
                                 </span>

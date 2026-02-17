@@ -22,9 +22,14 @@ export default function StationPage() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 30000); // Polling status
+        const interval = setInterval(() => {
+            fetchData(); // Sync data (maybe less frequent?)
+            setNow(new Date()); // Local timer tick
+        }, 1000);
         return () => clearInterval(interval);
     }, [stationId]);
+
+    const [now, setNow] = useState(new Date());
 
     const fetchData = async () => {
         // 1. Get Station & Page info
@@ -132,8 +137,10 @@ export default function StationPage() {
             {/* Header */}
             <header className="p-4 flex justify-between items-center bg-surface border-b border-white/10 sticky top-0 z-10" style={{ borderTop: `4px solid ${themeColor}` }}>
                 <div>
-                    <h1 className="font-bold text-lg">{station.pages?.business_name || 'GO-PLAY'}</h1>
-                    <span className="text-xs text-primary font-mono bg-primary/20 px-2 py-0.5 rounded">{station.name}</span>
+                    <h1 className="font-bold text-xl">{station.name}</h1>
+                    <p className="text-xs text-gray-400 font-mono flex items-center gap-1">
+                        at <span className="text-primary font-bold">{station.pages?.business_name || 'GO-PLAY'}</span>
+                    </p>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -155,17 +162,59 @@ export default function StationPage() {
                             <h2 className="text-gray-400 text-sm uppercase tracking-wider mb-1">Status Sesi</h2>
 
                             {session ? (
-                                <>
-                                    <div className="text-4xl font-bold font-mono mb-2">
-                                        {/* Placeholder Timer Logic */}
-                                        Running...
-                                    </div>
-                                    <p className="text-sm text-gray-500">Started: {new Date(session.start_time).toLocaleTimeString()}</p>
-                                    <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-sm">
-                                        <span className="text-gray-400">Total Tagihan</span>
-                                        <span className="font-bold text-primary">Est. Rp --</span>
-                                    </div>
-                                </>
+                                (() => {
+                                    const now = new Date();
+                                    const start = new Date(session.start_time).getTime();
+                                    const current = now.getTime();
+                                    let timeDisplay = "00:00:00";
+                                    let subText = "Running";
+                                    let progress = 0;
+
+                                    // Helper
+                                    const formatDuration = (ms: number) => {
+                                        if (ms < 0) return "00:00:00";
+                                        const seconds = Math.floor((ms / 1000) % 60);
+                                        const minutes = Math.floor((ms / (1000 * 60)) % 60);
+                                        const hours = Math.floor((ms / (1000 * 60 * 60)));
+                                        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                                    };
+
+                                    if (session.type === 'timer' || session.type === 'rental') {
+                                        const durationMs = (session.duration_minutes || 0) * 60 * 1000;
+                                        const end = start + durationMs;
+                                        const remaining = end - current;
+                                        timeDisplay = formatDuration(remaining);
+                                        subText = remaining < 0 ? "OVERDUE" : "Sisa Waktu";
+                                        progress = Math.max(0, Math.min(100, ((durationMs - remaining) / durationMs) * 100));
+                                    } else {
+                                        const elapsed = current - start;
+                                        timeDisplay = formatDuration(elapsed);
+                                        subText = "Durasi Berjalan";
+                                    }
+
+                                    return (
+                                        <>
+                                            <div className={`text-4xl font-bold font-mono mb-2 ${subText === 'OVERDUE' ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                                                {timeDisplay}
+                                            </div>
+                                            <p className="text-sm text-gray-500">{subText}</p>
+
+                                            {(session.type === 'timer' || session.type === 'rental') && (
+                                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden mt-4">
+                                                    <div
+                                                        className={`h-full transition-all duration-1000 ${subText === 'OVERDUE' ? 'bg-red-500' : 'bg-primary'}`}
+                                                        style={{ width: `${progress}%` }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-sm">
+                                                <span className="text-gray-400">Mulai</span>
+                                                <span className="font-bold">{new Date(session.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()
                             ) : (
                                 <div className="text-2xl font-bold text-gray-500 mt-2">
                                     OFFLINE / IDLE

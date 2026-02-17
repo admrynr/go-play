@@ -56,8 +56,22 @@ export default function DashboardPage() {
                 activeStations: activeSessions || 0,
                 totalStations: totalStations || 0,
                 pendingOrders: pendingOrders || 0,
-                revenueToday: 0 // Placeholder for now
+                revenueToday: 0
             });
+
+            // Get Revenue Today
+            const msStart = new Date();
+            msStart.setHours(0, 0, 0, 0);
+            const { data: revenueData } = await supabase
+                .from('sessions')
+                .select('total_amount')
+                .eq('page_id', pageData.id)
+                .gte('end_time', msStart.toISOString())
+                .eq('status', 'completed');
+
+            const totalRevenue = revenueData?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0;
+
+            setStats(prev => ({ ...prev, revenueToday: totalRevenue }));
         }
         setLoading(false);
     };
@@ -144,7 +158,9 @@ export default function DashboardPage() {
                         </div>
                         <div>
                             <p className="text-sm text-gray-400">Today's Revenue</p>
-                            <p className="text-2xl font-bold">Rp --</p>
+                            <p className="text-2xl font-bold">
+                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.revenueToday)}
+                            </p>
                         </div>
                     </div>
                 </div>

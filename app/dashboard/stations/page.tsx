@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar } from 'lucide-react';
+import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download } from 'lucide-react';
+import QRCode from "react-qr-code";
 
 interface RateConfig {
     hourly: number;
@@ -13,21 +14,30 @@ interface RateConfig {
 export default function StationsPage() {
     const [stations, setStations] = useState<any[]>([]);
     const [activeSessions, setActiveSessions] = useState<Record<string, any>>({});
-    const [stationsWithPageId, setStationsWithPageId] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showStartModal, setShowStartModal] = useState<string | null>(null);
-    const [pageId, setPageId] = useState<string | null>(null);
-    const [pageSlug, setPageSlug] = useState<string>('');
     const [rates, setRates] = useState<Record<string, RateConfig>>({});
 
-    // Forms
-    const [stationForm, setStationForm] = useState({ name: '', type: 'PS5' });
+    // Modals
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showStartModal, setShowStartModal] = useState<string | null>(null);
+    const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null); // Station ID
+    const [showQRModal, setShowQRModal] = useState<any | null>(null);
 
-    // Session Form
+    // Page Info
+    const [pageId, setPageId] = useState<string | null>(null);
+    const [pageSlug, setPageSlug] = useState<string>('');
+
+    // Forms
+    const [stationForm, setStationForm] = useState({ name: '', type: '' });
     const [sessionMode, setSessionMode] = useState<'onsite' | 'rental'>('onsite');
     const [onsiteForm, setOnsiteForm] = useState({ type: 'open', duration: 60 });
-    const [rentalForm, setRentalForm] = useState({ package: 'daily', duration: 1, customerName: '', customerPhone: '' }); // package: daily | halfDay | custom
+    const [rentalForm, setRentalForm] = useState({ package: 'daily', duration: 1, customerName: '' });
+
+    // Checkout State
+    const [checkoutData, setCheckoutData] = useState<any>(null); // Summary data
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>('cash');
+    const [cashReceived, setCashReceived] = useState<string>(''); // string for input handling
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     const supabase = createClient();
     const [now, setNow] = useState(new Date());
@@ -39,13 +49,13 @@ export default function StationsPage() {
 
     useEffect(() => {
         fetchData();
+        // Set default station type once rates are loaded
     }, []);
 
     const fetchData = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get Page Info (ID, Slug, Rate)
         const { data: page } = await supabase
             .from('pages')
             .select('id, slug, rental_rates')
@@ -56,22 +66,20 @@ export default function StationsPage() {
             setPageId(page.id);
             setPageSlug(page.slug);
 
-            // Parse rates safe
+            // Parse rates
             const parsedRates: Record<string, RateConfig> = {};
             const rawRates = page.rental_rates || {};
 
-            ['PS5', 'PS4', 'PS3', 'XBOX', 'PC'].forEach(type => {
-                const current = rawRates[type];
+            Object.keys(rawRates).forEach(key => {
+                const current = rawRates[key];
                 if (typeof current === 'number') {
-                    parsedRates[type] = { hourly: current, halfDay: 0, daily: 0 };
+                    parsedRates[key] = { hourly: current, halfDay: 0, daily: 0 };
                 } else if (current && typeof current === 'object') {
-                    parsedRates[type] = {
+                    parsedRates[key] = {
                         hourly: current.hourly || 0,
                         halfDay: current.halfDay || 0,
                         daily: current.daily || 0
                     };
-                } else {
-                    parsedRates[type] = { hourly: 0, halfDay: 0, daily: 0 };
                 }
             });
             setRates(parsedRates);
@@ -101,22 +109,33 @@ export default function StationsPage() {
         setLoading(false);
     };
 
+    // --- Station Management ---
+
     const handleAddStation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pageId) return;
+
+        // If no types exist, warn user
+        const availableTypes = Object.keys(rates);
+        if (availableTypes.length === 0) {
+            alert('Please go to Settings to define Console Types first!');
+            return;
+        }
+
+        const typeToUse = stationForm.type || availableTypes[0];
 
         setLoading(true);
         const { error } = await supabase.from('stations').insert({
             page_id: pageId,
             name: stationForm.name,
-            type: stationForm.type,
+            type: typeToUse,
             status: 'idle'
         });
 
         if (error) alert('Failed to add station');
         else {
             setShowAddModal(false);
-            setStationForm({ name: '', type: 'PS5' });
+            setStationForm({ name: '', type: '' });
             fetchData();
         }
         setLoading(false);
@@ -129,6 +148,8 @@ export default function StationsPage() {
         }
     };
 
+    // --- Session Start ---
+
     const handleStartSession = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!showStartModal || !pageId) return;
@@ -138,7 +159,6 @@ export default function StationsPage() {
         let endTime = null;
         let durationMinutes = null;
         let sessionType = '';
-        let initialAmount = 0; // Prepaid amount if any
 
         if (sessionMode === 'onsite') {
             sessionType = onsiteForm.type === 'timer' ? 'timer' : 'open';
@@ -149,42 +169,33 @@ export default function StationsPage() {
                 endTime = end.toISOString();
             }
         } else {
-            // RENTAL MODE
             sessionType = 'rental';
-            // Determine duration based on package
             if (rentalForm.package === 'halfDay') {
-                durationMinutes = 12 * 60 * rentalForm.duration; // duration is multiplier? usually just 1
+                durationMinutes = 12 * 60 * rentalForm.duration;
             } else if (rentalForm.package === 'daily') {
                 durationMinutes = 24 * 60 * rentalForm.duration;
             } else {
-                // Custom hours
                 durationMinutes = 60 * rentalForm.duration;
             }
-
             const end = new Date();
             end.setMinutes(end.getMinutes() + durationMinutes);
             endTime = end.toISOString();
         }
 
-        // Insert Session
         const { error: sessionError } = await supabase.from('sessions').insert({
             station_id: showStartModal,
             page_id: pageId,
             start_time: startTime,
             end_time: endTime,
             duration_minutes: durationMinutes,
-            type: sessionType, // 'open', 'timer', 'rental'
+            type: sessionType,
             status: 'active',
-            total_amount: initialAmount,
-            // metadata could store customer info if column existed, skipping for now as schema strictly typed without it
-            // Assuming we tracked it elsewhere or need schema update. For now, we trust the flow.
+            total_amount: 0,
         });
 
-        // Update Station Status
         await supabase.from('stations').update({ status: 'active' }).eq('id', showStartModal);
 
         if (sessionError) {
-            console.error(sessionError);
             alert('Failed to start session');
         } else {
             setShowStartModal(null);
@@ -193,81 +204,129 @@ export default function StationsPage() {
         setLoading(false);
     };
 
-    const handleStopSession = async (stationId: string, stationType: string) => {
+    // --- Checkout Flow ---
+
+    const handleOpenCheckout = async (stationId: string, stationType: string) => {
         const session = activeSessions[stationId];
         if (!session) return;
 
-        if (!confirm('Stop/Finish this session?')) return;
+        setShowCheckoutModal(stationId);
+        setCheckoutData(null); // Loading state inside modal
 
-        setLoading(true);
+        // 1. Calculate Rental Cost
         const endTime = new Date();
         const startTime = new Date(session.start_time);
-
         const rateConfig = rates[stationType] || { hourly: 0, halfDay: 0, daily: 0 };
-        let totalAmount = 0;
+        let rentalCost = 0;
 
         if (session.type === 'open') {
-            // On-site Open Bill
             const diffMs = endTime.getTime() - startTime.getTime();
             const diffHours = diffMs / (1000 * 60 * 60);
-            totalAmount = Math.ceil(diffHours * rateConfig.hourly);
+            rentalCost = Math.ceil(diffHours * rateConfig.hourly);
+            // Min charge 1 hour? Let's just do ceil.
         } else if (session.type === 'timer') {
-            // On-site Timer (Prepaid ideally, but user might pay at end)
             const hours = (session.duration_minutes || 0) / 60;
-            totalAmount = hours * rateConfig.hourly;
+            rentalCost = hours * rateConfig.hourly;
         } else if (session.type === 'rental') {
-            // Rental Pricing Logic
-            // We need to trace back what package it was. 
-            // For simplicity, we re-calculate based on duration.
-            const durationMins = session.duration_minutes || 0;
-            const hours = durationMins / 60;
-
-            // Check if it matches daily or half day multiples
-            if (hours >= 24 && hours % 24 === 0) {
-                totalAmount = (hours / 24) * rateConfig.daily;
-            } else if (hours >= 12 && hours % 12 === 0) {
-                // It's ambiguous if 24h is 2x 12h or 1x 24h. 
-                // Assuming optimal pricing:
-                const days = Math.floor(hours / 24);
-                const remain = hours % 24;
-                const halfDays = Math.floor(remain / 12);
-                // Fallback to hourly for remainders
-                // This logic is complex without storing 'package_type' in session.
-                // Simplification: Just use what matches best.
-                totalAmount = (hours / 12) * rateConfig.halfDay;
-            } else {
-                // Custom or Fallback
-                totalAmount = hours * rateConfig.hourly;
-            }
-
-            // Correction: If user set price rules carefully, we should respect them. 
-            // Better approach: Calculate cost at START and store in 'total_amount'.
-            // For now, let's just use a simple heuristic or prompt user? 
-            // Let's assume the duration * implied rate.
-
-            // Re-eval based on typical packages:
-            if (durationMins === 720) totalAmount = rateConfig.halfDay; // 12h
-            else if (durationMins === 1440) totalAmount = rateConfig.daily; // 24h
-            else if (durationMins > 0) totalAmount = (durationMins / 60) * rateConfig.hourly;
+            // simplified recalc based on duration set
+            const mins = session.duration_minutes || 0;
+            if (mins >= 1440) rentalCost = (mins / 1440) * rateConfig.daily;
+            else if (mins >= 720) rentalCost = (mins / 720) * rateConfig.halfDay;
+            else rentalCost = (mins / 60) * rateConfig.hourly;
         }
 
-        // Update Session
-        await supabase.from('sessions').update({
-            status: 'completed',
-            end_time: endTime.toISOString(),
-            total_amount: totalAmount
-        }).eq('id', session.id);
+        // 2. Fetch Orders
+        // Make sure to fetch confirmed orders if you have status logic, but let's grab all for session
+        const { data: orders } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('session_id', session.id); // Assuming simple checkout, unpaid orders
 
-        await supabase.from('stations').update({ status: 'idle' }).eq('id', stationId);
+        const ordersTotal = orders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
 
-        fetchData();
-        setLoading(false);
+        // 3. Set Data
+        setCheckoutData({
+            sessionId: session.id,
+            rentalCost,
+            ordersTotal,
+            orders: orders || [],
+            grandTotal: rentalCost + ordersTotal,
+            stationType,
+            startTime,
+            endTime
+        });
+        setPaymentMethod('cash');
+        setCashReceived('');
     };
+
+    const handleFinishPayment = async () => {
+        if (!checkoutData || !pageId) return;
+        setIsProcessingPayment(true);
+
+        const finalAmount = checkoutData.grandTotal;
+        const cashIn = parseFloat(cashReceived) || 0;
+        const change = cashIn - finalAmount;
+
+        // Update Session
+        const { error } = await supabase.from('sessions').update({
+            status: 'completed',
+            end_time: new Date().toISOString(),
+            total_amount: finalAmount,
+            payment_method: paymentMethod,
+            cash_received: paymentMethod === 'cash' ? cashIn : null,
+            change_given: paymentMethod === 'cash' ? change : null
+        }).eq('id', checkoutData.sessionId);
+
+        // Update Orders to Paid
+        if (!error) {
+            await supabase.from('orders')
+                .update({ status: 'paid' })
+                .eq('session_id', checkoutData.sessionId);
+        }
+
+        // Update Station
+        await supabase.from('stations').update({ status: 'idle' }).eq('id', showCheckoutModal);
+
+        if (error) {
+            alert('Error completing transaction');
+        } else {
+            setShowCheckoutModal(null);
+            fetchData();
+        }
+        setIsProcessingPayment(false);
+    };
+
+    const handleDownloadQR = () => {
+        const svg = document.getElementById("station-qr-code");
+        if (!svg) return;
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx?.drawImage(img, 0, 0);
+            const pngFile = canvas.toDataURL("image/png");
+
+            const downloadLink = document.createElement("a");
+            downloadLink.download = `QR-${showQRModal.name}.png`;
+            downloadLink.href = pngFile;
+            downloadLink.click();
+        };
+
+        img.src = "data:image/svg+xml;base64," + btoa(svgData);
+    };
+
+    // --- Helpers ---
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
     };
 
+    // ... (formatDuration helpers same as before)
     const formatDuration = (ms: number) => {
         if (ms < 0) return "00:00:00";
         const seconds = Math.floor((ms / 1000) % 60);
@@ -278,12 +337,11 @@ export default function StationsPage() {
 
     if (loading && stations.length === 0) return <div>Loading...</div>;
 
-    // Helper to get current rate config for modal
-    const currentStation = stations.find(s => s.id === showStartModal);
-    const currentRates = currentStation ? (rates[currentStation.type] || { hourly: 0, halfDay: 0, daily: 0 }) : { hourly: 0, halfDay: 0, daily: 0 };
+    const availableTypes = Object.keys(rates);
 
     return (
         <div>
+            {/* Header */}
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-heading font-bold">Stations</h1>
@@ -300,6 +358,7 @@ export default function StationsPage() {
                 </div>
             </div>
 
+            {/* Stations Grid */}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {stations.map((station) => {
                     const session = activeSessions[station.id];
@@ -311,7 +370,6 @@ export default function StationsPage() {
                     let timeDisplay = "IDLE";
                     let costDisplay = "Rp --";
                     let statusLabel = station.type;
-                    let progress = 0;
 
                     if (isActive && session) {
                         const start = new Date(session.start_time).getTime();
@@ -326,7 +384,6 @@ export default function StationsPage() {
                             // Cost calc
                             let estimatedCost = 0;
                             if (session.type === 'rental') {
-                                // Simplified display logic
                                 if (session.duration_minutes >= 1440) estimatedCost = rateConfig.daily * (session.duration_minutes / 1440);
                                 else if (session.duration_minutes >= 720) estimatedCost = rateConfig.halfDay;
                                 else estimatedCost = (session.duration_minutes / 60) * rateConfig.hourly;
@@ -335,12 +392,7 @@ export default function StationsPage() {
                             }
                             costDisplay = formatCurrency(estimatedCost);
 
-                            progress = Math.max(0, Math.min(100, ((durationMs - remaining) / durationMs) * 100));
-
-                            if (remaining < 0) {
-                                timeDisplay = "OVERDUE";
-                            }
-
+                            if (remaining < 0) timeDisplay = "OVERDUE";
                             statusLabel = session.type === 'rental' ? 'RENTED OUT' : 'BUSY';
                         } else {
                             // Open billing
@@ -360,10 +412,17 @@ export default function StationsPage() {
                                     href={`/${pageSlug}/station/${station.id}`}
                                     target="_blank"
                                     className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                    title="QR Link"
+                                    title="Open Player Interface"
+                                >
+                                    <Monitor className="w-4 h-4" />
+                                </a>
+                                <button
+                                    onClick={() => setShowQRModal(station)}
+                                    className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    title="Show QR"
                                 >
                                     <QrCode className="w-4 h-4" />
-                                </a>
+                                </button>
                                 {!isActive && (
                                     <button
                                         onClick={() => handleDeleteStation(station.id, station.name)}
@@ -389,7 +448,7 @@ export default function StationsPage() {
                                 </div>
                             </div>
 
-                            {/* Timer / Session Info */}
+                            {/* Info */}
                             <div className="bg-black/20 rounded-xl p-4 mb-4">
                                 <div className="flex justify-between items-end mb-2">
                                     <div>
@@ -399,29 +458,21 @@ export default function StationsPage() {
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-gray-400 mb-1">Bill</p>
+                                        <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
                                         <p className="text-lg font-bold text-primary">{costDisplay}</p>
                                     </div>
                                 </div>
-                                {isActive && (session.type === 'timer' || session.type === 'rental') && (
-                                    <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden mt-2">
-                                        <div
-                                            className="bg-primary h-full transition-all duration-1000"
-                                            style={{ width: `${progress}%` }}
-                                        />
-                                    </div>
-                                )}
                             </div>
 
                             {/* Controls */}
                             <div className="grid gap-2">
                                 {isActive ? (
                                     <button
-                                        onClick={() => handleStopSession(station.id, station.type)}
+                                        onClick={() => handleOpenCheckout(station.id, station.type)}
                                         className="w-full bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/50 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
                                     >
                                         <Square className="w-4 h-4 fill-current" />
-                                        Finish Session
+                                        Stop & Checkout
                                     </button>
                                 ) : (
                                     <button
@@ -440,14 +491,9 @@ export default function StationsPage() {
 
             {/* Add Station Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold">Add New Station</h2>
-                            <button onClick={() => setShowAddModal(false)}>
-                                <X className="w-6 h-6 text-gray-400 hover:text-white" />
-                            </button>
-                        </div>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-6">
+                        <h2 className="text-xl font-bold mb-6">Add New Station</h2>
                         <form onSubmit={handleAddStation} className="space-y-4">
                             <div>
                                 <label className="block text-sm text-gray-400 mb-1">Station Name</label>
@@ -467,23 +513,152 @@ export default function StationsPage() {
                                     value={stationForm.type}
                                     onChange={(e) => setStationForm({ ...stationForm, type: e.target.value })}
                                 >
-                                    {['PS5', 'PS4', 'PS3', 'XBOX', 'PC'].map(t => (
+                                    {availableTypes.length === 0 ? <option value="">No types defined in Settings</option> : null}
+                                    {availableTypes.map(t => (
                                         <option key={t} value={t}>{t}</option>
                                     ))}
                                 </select>
                             </div>
-                            <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl">
+                            <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl disabled:opacity-50" disabled={availableTypes.length === 0}>
                                 Create Station
                             </button>
+                            <button type="button" onClick={() => setShowAddModal(false)} className="w-full mt-2 text-gray-400">Cancel</button>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Start Session Modal */}
+            {/* Checkout Modal */}
+            {showCheckoutModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-lg p-0 overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <ShoppingBag className="w-5 h-5 text-primary" />
+                                Payment & Checkout
+                            </h2>
+                            <button onClick={() => setShowCheckoutModal(null)}>
+                                <X className="w-6 h-6 text-gray-400 hover:text-white" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto flex-grow">
+                            {!checkoutData ? (
+                                <div className="text-center py-10"><h2 className="animate-pulse">Calculating Bill...</h2></div>
+                            ) : (
+                                <>
+                                    {/* Summary List */}
+                                    <div className="space-y-4 mb-6">
+                                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                                            <div>
+                                                <p className="font-bold">Rental Cost</p>
+                                                <p className="text-xs text-gray-400">
+                                                    Duration: {((new Date(checkoutData.endTime).getTime() - new Date(checkoutData.startTime).getTime()) / (1000 * 60)).toFixed(0)} mins
+                                                </p>
+                                            </div>
+                                            <p className="font-mono font-bold">{formatCurrency(checkoutData.rentalCost)}</p>
+                                        </div>
+
+                                        {checkoutData.orders.length > 0 && (
+                                            <div className="p-3 bg-white/5 rounded-lg space-y-2">
+                                                <p className="font-bold border-b border-white/10 pb-2 mb-2">F&B Orders</p>
+                                                {checkoutData.orders.map((o: any) => (
+                                                    <div key={o.id} className="flex justify-between text-sm">
+                                                        <span className="text-gray-400">Order #{o.id.slice(0, 4)}</span>
+                                                        <span>{formatCurrency(o.total_amount)}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between font-bold pt-2 border-t border-white/10">
+                                                    <span>Subtotal F&B</span>
+                                                    <span>{formatCurrency(checkoutData.ordersTotal)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-between items-center py-4 border-t-2 border-white/10">
+                                            <p className="text-xl font-bold">TOTAL TO PAY</p>
+                                            <p className="text-2xl font-bold text-primary">{formatCurrency(checkoutData.grandTotal)}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Method */}
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-bold mb-3 text-gray-400">Payment Method</label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                onClick={() => setPaymentMethod('cash')}
+                                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
+                                                    }`}
+                                            >
+                                                <Banknote className="w-6 h-6" />
+                                                <span className="font-bold">CASH</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setPaymentMethod('qris')}
+                                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'qris' ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
+                                                    }`}
+                                            >
+                                                <QrCode className="w-6 h-6" />
+                                                <span className="font-bold">QRIS</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Cash Input */}
+                                    {paymentMethod === 'cash' && (
+                                        <div className="mb-6 p-4 bg-white/5 rounded-xl animate-in slide-in-from-top-2">
+                                            <label className="block text-sm text-gray-400 mb-1">Cash Received</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">Rp</span>
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-black/50 border border-white/20 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-green-500 focus:outline-none"
+                                                    value={cashReceived}
+                                                    onChange={(e) => setCashReceived(e.target.value)}
+                                                    placeholder="0"
+                                                />
+                                            </div>
+
+                                            {/* Change Calculation */}
+                                            {parseFloat(cashReceived) > 0 && (
+                                                <div className="mt-4 flex justify-between items-center text-lg">
+                                                    <span className="text-gray-400">Change / Kembalian:</span>
+                                                    <span className={`font-bold font-mono ${(parseFloat(cashReceived) - checkoutData.grandTotal) < 0 ? 'text-red-500' : 'text-green-400'
+                                                        }`}>
+                                                        {formatCurrency(Math.max(0, parseFloat(cashReceived) - checkoutData.grandTotal))}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="p-6 border-t border-white/10 bg-surface">
+                            <button
+                                onClick={handleFinishPayment}
+                                disabled={isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(cashReceived) || 0) < (checkoutData?.grandTotal || 0))}
+                                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isProcessingPayment ? <span className="animate-pulse">Processing...</span> : (
+                                    <>
+                                        <CheckCircle className="w-5 h-5" />
+                                        Complete Payment
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Start Modal (Existing) - Truncated for brevity if unchanged, but keeping it full for safety */}
             {showStartModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-6">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold">Start Session</h2>
                             <button onClick={() => setShowStartModal(null)}>
@@ -505,13 +680,12 @@ export default function StationsPage() {
                                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${sessionMode === 'rental' ? 'bg-primary text-white shadow' : 'text-gray-400 hover:text-white'
                                     }`}
                             >
-                                Rent Out / Bawa Pulang
+                                Rent Out
                             </button>
                         </div>
 
                         <form onSubmit={handleStartSession} className="space-y-6">
-
-                            {/* ON SITE MODE */}
+                            {/* ON SITE */}
                             {sessionMode === 'onsite' && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
@@ -522,7 +696,6 @@ export default function StationsPage() {
                                         >
                                             <Timer className="w-6 h-6 mx-auto mb-2 text-primary" />
                                             <p className="font-bold">Timer</p>
-                                            <p className="text-xs text-gray-400">Fixed Duration</p>
                                         </div>
                                         <div
                                             onClick={() => setOnsiteForm({ ...onsiteForm, type: 'open' })}
@@ -531,10 +704,8 @@ export default function StationsPage() {
                                         >
                                             <Clock className="w-6 h-6 mx-auto mb-2 text-blue-400" />
                                             <p className="font-bold">Open Bill</p>
-                                            <p className="text-xs text-gray-400">Pay at end</p>
                                         </div>
                                     </div>
-
                                     {onsiteForm.type === 'timer' && (
                                         <div>
                                             <label className="block text-sm text-gray-400 mb-2">Duration (Minutes)</label>
@@ -557,17 +728,14 @@ export default function StationsPage() {
                                                 min="1"
                                                 className="w-full bg-background border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
                                                 value={onsiteForm.duration}
-                                                onChange={(e) => setOnsiteForm({ ...onsiteForm, duration: parseInt(e.target.value) || 0 })}
+                                                onChange={(e) => setOnsiteForm({ ...onsiteForm, duration: parseInt(e.target.value) || 1 })}
                                             />
-                                            <p className="text-right text-sm text-primary mt-2 font-bold">
-                                                Rate: {formatCurrency(currentRates.hourly)}/hr
-                                            </p>
                                         </div>
                                     )}
                                 </div>
                             )}
 
-                            {/* RENTAL MODE */}
+                            {/* RENTAL */}
                             {sessionMode === 'rental' && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-3 gap-2">
@@ -587,7 +755,7 @@ export default function StationsPage() {
                                                 }`}
                                         >
                                             <Clock className="w-5 h-5 mx-auto mb-1" />
-                                            <span className="text-xs font-bold block">12 Hours</span>
+                                            <span className="text-xs font-bold block">12h</span>
                                         </button>
                                         <button
                                             type="button"
@@ -596,7 +764,7 @@ export default function StationsPage() {
                                                 }`}
                                         >
                                             <Timer className="w-5 h-5 mx-auto mb-1" />
-                                            <span className="text-xs font-bold block">Custom</span>
+                                            <span className="text-xs font-bold block">Hourly</span>
                                         </button>
                                     </div>
 
@@ -612,17 +780,6 @@ export default function StationsPage() {
                                             onChange={(e) => setRentalForm({ ...rentalForm, duration: parseInt(e.target.value) || 1 })}
                                         />
                                     </div>
-
-                                    <div className="p-3 bg-white/5 rounded-xl flex justify-between items-center">
-                                        <span className="text-sm text-gray-400">Total Price</span>
-                                        <span className="text-xl font-bold text-primary">
-                                            {formatCurrency(
-                                                rentalForm.package === 'daily' ? currentRates.daily * rentalForm.duration :
-                                                    rentalForm.package === 'halfDay' ? currentRates.halfDay * rentalForm.duration :
-                                                        currentRates.hourly * rentalForm.duration
-                                            )}
-                                        </span>
-                                    </div>
                                 </div>
                             )}
 
@@ -630,6 +787,38 @@ export default function StationsPage() {
                                 Start Session
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* QR Modal */}
+            {showQRModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-sm p-6 text-center">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold">Station QR Code</h2>
+                            <button onClick={() => setShowQRModal(null)}>
+                                <X className="w-6 h-6 text-gray-400 hover:text-white" />
+                            </button>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-xl mb-6 mx-auto w-fit">
+                            <QRCode
+                                id="station-qr-code"
+                                value={`${window.location.origin}/${pageSlug}/station/${showQRModal.id}`}
+                                size={200}
+                            />
+                        </div>
+
+                        <p className="font-bold text-lg mb-1">{showQRModal.name}</p>
+                        <p className="text-sm text-gray-400 mb-6">Scan to open Player Interface</p>
+
+                        <button
+                            onClick={handleDownloadQR}
+                            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+                        >
+                            <Download className="w-5 h-5" />
+                            Download Image
+                        </button>
                     </div>
                 </div>
             )}
