@@ -27,7 +27,7 @@ export default function LoginPage() {
             if (error) {
                 setError(error.message);
             } else if (data.user) {
-                router.push('/builder');
+                // Let middleware handle the redirect based on role
                 router.refresh();
             }
         } catch (err) {

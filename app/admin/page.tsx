@@ -18,7 +18,7 @@ export default function AdminDashboard() {
             if (user) setUserEmail(user.email || '');
 
             const { data: templates } = await supabase.from('templates').select('id');
-            const { data: websites } = await supabase.from('pages').select('id');
+            const { data: websites } = await supabase.from('pages').select('id').not('owner_id', 'is', null) // Only show tenants with an owner;
 
             setStats({
                 templates: templates?.length || 0,
@@ -82,7 +82,7 @@ export default function AdminDashboard() {
                                 <Globe className="w-8 h-8 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-sm">Total Websites</p>
+                                <p className="text-gray-400 text-sm">Total Tenants</p>
                                 <p className="text-4xl font-bold">{stats.websites}</p>
                             </div>
                         </div>
@@ -103,25 +103,25 @@ export default function AdminDashboard() {
                     </Link>
 
                     <Link
-                        href="/admin/websites"
+                        href="/admin/tenants"
                         className="bg-surface border border-white/10 rounded-2xl p-8 hover:bg-white/5 transition-colors group"
                     >
                         <Globe className="w-12 h-12 text-blue-400 mb-4" />
                         <h2 className="text-2xl font-bold mb-2 group-hover:text-blue-400 transition-colors">
-                            Manage Websites
+                            Manage Tenants
                         </h2>
-                        <p className="text-gray-400">Create and manage generated websites</p>
+                        <p className="text-gray-400">Create and manage rental owners</p>
                     </Link>
                 </div>
 
                 {/* Quick Action */}
                 <div className="mt-8">
                     <Link
-                        href="/admin/websites/create"
+                        href="/admin/tenants/create"
                         className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-8 rounded-xl transition-all hover:glow-box"
                     >
                         <Plus className="w-5 h-5" />
-                        Create New Website
+                        Create New Tenant
                     </Link>
                 </div>
             </main>

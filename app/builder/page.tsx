@@ -32,13 +32,43 @@ export default function BuilderPage() {
     const supabase = createClient();
 
     useEffect(() => {
-        const getUser = async () => {
+        const init = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUserEmail(user.email || '');
             }
+
+            // Check for 'id' param in URL (for Admin override)
+            const params = new URLSearchParams(window.location.search);
+            const adminOverrideId = params.get('id');
+
+            let query = supabase.from('pages').select('*');
+
+            if (adminOverrideId) {
+                // If ID is provided, fetch that specific page (RLS must allow or user must be admin)
+                // Note: Standard client might still be blocked by RLS if not owner.
+                // However, for now we assume Admin has RLS bypass or policy allows read.
+                query = query.eq('id', adminOverrideId);
+            } else if (user) {
+                // Otherwise fetch user's own page
+                query = query.eq('owner_id', user.id);
+            } else {
+                return;
+            }
+
+            const { data, error } = await query.single();
+
+            if (data) {
+                setFormData({
+                    businessName: data.business_name || '',
+                    whatsappNumber: data.whatsapp_number || '',
+                    address: data.address || '',
+                    logoText: data.logo_text || '',
+                    themeColor: data.theme_color || '#003791',
+                });
+            }
         };
-        getUser();
+        init();
     }, [supabase]);
 
     const handleLogout = async () => {

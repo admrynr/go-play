@@ -1,51 +1,93 @@
-# PROJECT: PS-BOX PORTABLE RENTAL LANDING PAGE
-# BASE REFERENCE: https://videogametemplate.webflow.io/home
-# THEME: High-End Gaming / Dark Mode / Blue Accent
+# PROJECT: GO-PLAY PLATFORM (SAAS PS RENTAL MANAGEMENT)
 
-## 1. GLOBAL VISUAL STYLE
-- **Background:** Dark Charcoal (#0A0A0A) with Subtle Radial Gradients.
-- **Accent Color:** PlayStation Blue (#003791) for buttons, borders, and icons.
-- **Typography:** - Headings: 'Inter' or 'Montserrat', Bold, Uppercase (for a rugged gaming look).
-    - Body: 'Inter', Regular, Light Grey (#A1A1A1).
-- **Radius:** 12px for all cards and buttons.
-- **Glow Effect:** Apply #003791 box-shadow (0 0 15px) on hover for primary components.
+## 1. PLATFORM OVERVIEW
+**Go-Play** is a comprehensive SaaS platform for PlayStation Rental businesses. It connects Rental Owners, Their Staff (Operators/Kitchen), and End-Users (Players).
 
-## 2. COMPONENT ARCHITECTURE & CONTENT PIVOT
+### Core Ecosystem
+1.  **Public Landing Page (Go-Play B2B)**: Sales page for Rental Owners to sign up.
+2.  **Super Admin Dashboard**: For Go-Play owners to manage tenants/subscriptions.
+3.  **Rental Admin Dashboard**: The core product for Rental Owners (POS, Station Management, Simple CRM).
+4.  **Player Interface (Mobile Web)**: Accessed via QR Code at each station for self-service.
 
-### [SECTION 1: NAVBAR]
-- **Logo:** [PS-BOX LOGO]
-- **Links:** Layanan, Pilihan Box, Harga, FAQ.
-- **CTA Button:** "Sewa Sekarang" (Solid Blue).
+---
 
-### [SECTION 2: HERO - THE HOOK]
-- **Visual:** Image of a portable gaming box (integrated screen + PS5).
-- **Headline:** "Gaming Tanpa Batas, Di Mana Saja."
-- **Sub-headline:** "Sewa Box PS Portable All-in-One. Plug & Play lengkap dengan TV 4K, PS5, dan Controller. Siap kirim ke lokasi Anda."
-- **Buttons:** [Primary: Cek Ketersediaan] [Secondary: Lihat Video Demo].
+## 2. USER ROLES & JOURNEYS
 
-### [SECTION 3: PRODUCT GRID - PILIHAN BOX]
-(Ubah 'Game Modes' menjadi 'Varian Box')
-- **Card 1 (The Titan):** Image: PS5 Box + TV 32". Text: "Box PS5 Ultimate - Pengalaman 4K murni untuk hardcore gamer."
-- **Card 2 (The Scout):** Image: PS4 Pro Box + TV 24". Text: "Box PS4 Pro - Ringkas, tangguh, dan ekonomis untuk nongkrong."
-- **Card 3 (Event Pack):** Image: Multiple Boxes. Text: "Event Bundle - Solusi turnamen dan gathering komunitas."
+### A. Rental Owner (Tenant)
+- **Goal**: Manage stations, track revenue, receive food orders.
+- **Key Features**:
+    - **Station Management**: Create/Edit stations (e.g., "TV 1", "VIP Room").
+    - **Menu Management**: Add food/drinks with prices and photos.
+    - **Active Session View**: See which stations are active, time remaining, and billing type.
+    - **Kitchen View**: Receive real-time orders from players.
+    - **QR Generator**: Print unique QR codes for each station.
+    - **Landing Page Builder**: Customize their public rental website (Hero, Contact, Pricing).
 
-### [SECTION 4: FEATURE BREAKDOWN - WHY US?]
-(Ubah 'Infinite Galaxy' section menjadi 'Tech Specs')
-- **Feature 1:** "Cooling System Pro" - Box dilengkapi fan industrial agar PS tidak overheat.
-- **Feature 2:** "Instant Setup" - Hanya butuh 1 kabel power, langsung main dalam 30 detik.
-- **Feature 3:** "Premium Hardware" - Monitor low-latency & Controller original.
+### B. Player (End-User)
+- **Goal**: Order food, check time, request help without shouting.
+- **Journey**:
+    1.  Sit at Station (TV 1).
+    2.  Scan QR Code on the table.
+    3.  Open Web App (No install required).
+    4.  **View**: Time Remaining (if timer) / Time Elapsed (if billing).
+    5.  **Action**: "Order Food" -> Browse Menu -> Add to Cart -> Order.
+    6.  **Action**: "Call Operator" -> Request assistance.
+    7.  **Action**: "Tambah Waktu" -> Request extension.
 
-### [SECTION 5: PRICING & RENTAL TERMS]
-(Ubah 'Blog/News' menjadi 'Daftar Harga')
-- **Layout:** Vertical Cards.
-- **Options:** - Paket 12 Jam: RpXXX.000
-    - Paket 24 Jam: RpXXX.000
-    - Paket Weekend: RpXXX.000
+### C. Super Admin (Go-Play Owner)
+- **Goal**: Manage the SaaS platform.
+- **Key Features**:
+    - Create/Suspend Rental Owner accounts.
+    - Global Template Management.
 
-### [SECTION 6: FOOTER & SOCIALS]
-- **Content:** Alamat Workshop, WhatsApp Link, Instagram, TikTok.
-- **Badge:** "Ready to Play? Hubungi Admin via WhatsApp."
+---
 
-## 3. INTERACTIVE LOGIC
-- **CTA Actions:** Semua tombol "Sewa Sekarang" arahkan langsung ke WhatsApp API dengan template pesan: "Halo Admin, saya mau sewa [Nama Paket] untuk tanggal [Input Tanggal]."
-- **Hover States:** Semua card produk harus memiliki efek `transform: translateY(-10px)` saat di-hover.
+## 3. FEATURE SPECIFICATIONS
+
+### [MODULE 1: RENTAL ADMIN DASHBOARD]
+**URL**: `/dashboard`
+- **Station Grid**:
+    - Cards representing TV/Consoles.
+    - Status Indicators: Idle (Green), Active (Blue), Cleaning/Maintenance (Red).
+    - Quick Actions: Start Session, Stop Session, Add Order.
+- **Order Management**:
+    - Incoming orders from QR codes.
+    - Notification sound for new orders.
+    - Status: Pending -> Preparing -> Served -> Paid.
+- **Billing System**:
+    - **Pre-paid (Timer)**: Auto-stop or alert when time ends.
+    - **Post-paid (Open/Loose)**: Count up timer, stop to calculate final bill.
+
+### [MODULE 2: PLAYER INTERFACE]
+**URL**: `/[slug]/station/[station_id]`
+- **Design**: Mobile-first, Dark Mode, High Contrast.
+- **Home Screen**:
+    - Large Timer Display.
+    - "Bill So Far" (Estimated).
+    - Quick Buttons: [Menu] [Call Staff] [Extend].
+- **F&B Menu**:
+    - Categories (Drinks, Snacks, Meals).
+    - Add to Cart -> Confirm Order.
+
+### [MODULE 3: PUBLIC RENTAL SITE]
+**URL**: `/[slug]`
+- **Content**: Generated from the Rental Admin settings.
+- **Sections**: Hero, Unit Variants (PS4/PS5), Pricing, Location, Contact.
+- **Design**: StoryBrand Template (Dark/Gaming Theme).
+
+---
+
+## 4. TECHNICAL ARCHITECTURE
+
+### Database Schema (Supabase)
+1.  **tenants** (users/owners): linked to `auth.users`.
+2.  **pages** (websites): stores branding, theme, contact info.
+3.  **stations**: `id`, `page_id`, `name`, `type`, `qr_code_url`.
+4.  **menu_items**: `id`, `page_id`, `name`, `price`, `category`, `image`, `is_available`.
+5.  **sessions**: `id`, `station_id`, `start_time`, `end_time`, `type` (timer/open), `status`.
+6.  **orders**: `id`, `session_id`, `total`, `status` (pending/served/paid).
+7.  **order_items**: `id`, `order_id`, `menu_item_id`, `qty`, `price`.
+
+### Security (RLS)
+- **Tenants**: Can only access data with their `page_id` / `owner_id`.
+- **Players**: Can only access `sessions` and `menu_items` linked to their scanned `station_id`.

@@ -18,6 +18,7 @@ export default function WebsitesPage() {
         const { data } = await supabase
             .from('pages')
             .select('*, templates(name)')
+            .not('owner_id', 'is', null) // Only show tenants with an owner
             .order('created_at', { ascending: false });
         setWebsites(data || []);
         setLoading(false);
@@ -43,16 +44,16 @@ export default function WebsitesPage() {
                             <ArrowLeft className="w-6 h-6" />
                         </Link>
                         <div>
-                            <h1 className="text-3xl font-heading font-bold">Websites</h1>
-                            <p className="text-gray-400 text-sm">Manage generated websites</p>
+                            <h1 className="text-3xl font-heading font-bold">Tenants</h1>
+                            <p className="text-gray-400 text-sm">Manage rental owners</p>
                         </div>
                     </div>
                     <Link
-                        href="/admin/websites/create"
+                        href="/admin/tenants/create"
                         className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition-all"
                     >
                         <Plus className="w-5 h-5" />
-                        Create Website
+                        Create Tenant
                     </Link>
                 </div>
 
@@ -61,13 +62,13 @@ export default function WebsitesPage() {
                 ) : websites.length === 0 ? (
                     <div className="text-center py-16">
                         <Globe className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                        <p className="text-gray-400 mb-4">Belum ada website yang dibuat</p>
+                        <p className="text-gray-400 mb-4">Belum ada tenant yang dibuat</p>
                         <Link
-                            href="/admin/websites/create"
+                            href="/admin/tenants/create"
                             className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl"
                         >
                             <Plus className="w-5 h-5" />
-                            Create Your First Website
+                            Create Your First Tenant
                         </Link>
                     </div>
                 ) : (
@@ -113,6 +114,20 @@ export default function WebsitesPage() {
                                                 >
                                                     <ExternalLink className="w-4 h-4" />
                                                 </a>
+                                                <Link
+                                                    href={`/builder?id=${site.id}`}
+                                                    className="p-2 text-blue-400 hover:text-blue-300 transition-colors rounded-lg hover:bg-blue-500/10"
+                                                    title="Edit Website (Builder)"
+                                                >
+                                                    <Globe className="w-4 h-4" />
+                                                </Link>
+                                                <Link
+                                                    href={`/admin/tenants/${site.id}/edit`}
+                                                    className="p-2 text-yellow-400 hover:text-yellow-300 transition-colors rounded-lg hover:bg-yellow-500/10"
+                                                    title="Edit Tenant Info"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </Link>
                                                 <button
                                                     onClick={() => handleDelete(site.id, site.slug)}
                                                     className="p-2 text-red-400 hover:text-red-300 transition-colors rounded-lg hover:bg-red-500/10"
