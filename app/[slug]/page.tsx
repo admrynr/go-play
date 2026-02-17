@@ -1,4 +1,5 @@
 import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
+import PlayZoneTemplate from '@/components/templates/PlayZoneTemplate';
 import { createClient } from '@/lib/supabase/server';
 
 interface PageProps {
@@ -10,7 +11,7 @@ async function getPageData(slug: string) {
 
     const { data, error } = await supabase
         .from('pages')
-        .select('*')
+        .select('*, templates(component_name)')
         .eq('slug', slug)
         .single();
 
@@ -38,8 +39,12 @@ export default async function DynamicPage({ params }: PageProps) {
         );
     }
 
+    // Determine which template to use
+    const templateName = pageData.templates?.component_name || 'StoryBrandTemplate';
+    const TemplateComponent = templateName === 'PlayZoneTemplate' ? PlayZoneTemplate : StoryBrandTemplate;
+
     return (
-        <StoryBrandTemplate
+        <TemplateComponent
             businessName={pageData.business_name}
             whatsappNumber={pageData.whatsapp_number}
             address={pageData.address}

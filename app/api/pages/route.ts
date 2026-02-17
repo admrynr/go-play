@@ -1,55 +1,109 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// POST: Create a new page
+// POST: Create OR Update page (upsert logic)
 export async function POST(request: Request) {
     try {
         const supabase = await createClient();
-
-        // Check if user is authenticated
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
         const body = await request.json();
-        const { businessName, whatsappNumber, address, logoText, logoUrl, themeColor, templateId } = body;
+        const { businessName, whatsappNumber, address, logoText, logoUrl, themeColor, templateId, targetPageId } = body;
 
-        // Generate a simple slug from business name
-        let slug = businessName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
+        let targetPage = null;
+        let targetTenant = null;
 
-        if (!slug) {
-            slug = `biz-${Math.random().toString(36).substring(7)}`;
-        }
-
-        // Check if slug exists and make it unique
-        let uniqueSlug = slug;
-        let counter = 1;
-
-        while (true) {
-            const { data: existing } = await supabase
+        if (targetPageId) {
+            // ADMIN OR OWNER check
+            const { data: pageById, error: fetchPageError } = await supabase
                 .from('pages')
-                .select('slug')
-                .eq('slug', uniqueSlug)
+                .select('*, tenants(*)')
+                .eq('id', targetPageId)
                 .single();
 
-            if (!existing) break;
-            uniqueSlug = `${slug}-${counter}`;
-            counter++;
+            if (fetchPageError || !pageById) {
+                return NextResponse.json({ success: false, error: 'Target page not found' }, { status: 404 });
+            }
+
+            // Permissions: is owner OR is admin
+            const isOwner = pageById.owner_id === user.id;
+            const isAdmin = user.user_metadata?.role === 1;
+
+            if (!isOwner && !isAdmin) {
+                return NextResponse.json({ success: false, error: 'Unauthorized to edit this page' }, { status: 403 });
+            }
+
+            targetPage = pageById;
+            targetTenant = pageById.tenants;
+        } else {
+            // FALLBACK: find by current user's tenant
+            const { data: tenant } = await supabase
+                .from('tenants')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (!tenant) {
+                return NextResponse.json({ success: false, error: 'Tenant profile not found' }, { status: 404 });
+            }
+
+            targetTenant = tenant;
+
+            const { data: pageByTenant } = await supabase
+                .from('pages')
+                .select('*')
+                .eq('tenant_id', tenant.id)
+                .single();
+
+            targetPage = pageByTenant;
         }
 
-        // Insert new page
-        const { data, error } = await supabase
+        if (targetPage) {
+            // UPDATE existing page - always keep slug synced with tenant username
+            const { data, error } = await supabase
+                .from('pages')
+                .update({
+                    slug: targetTenant.username,
+                    business_name: businessName || targetTenant.business_name,
+                    whatsapp_number: whatsappNumber || '',
+                    address: address || '',
+                    logo_text: logoText || businessName || targetTenant.business_name,
+                    logo_url: logoUrl || null,
+                    theme_color: themeColor || '#003791',
+                    template_id: templateId || targetPage.template_id,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', targetPage.id)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // SYNC back to tenants table if business name changed
+            if (businessName && businessName !== targetTenant.business_name) {
+                await supabase
+                    .from('tenants')
+                    .update({ business_name: businessName })
+                    .eq('id', targetTenant.id);
+            }
+
+            return NextResponse.json({ success: true, slug: data.slug, page: data });
+        }
+
+        // Create new page if somehow not existing (default fallback)
+        const { data: newPage, error: insertError } = await supabase
             .from('pages')
             .insert({
-                slug: uniqueSlug,
-                business_name: businessName,
-                whatsapp_number: whatsappNumber,
-                address,
-                logo_text: logoText || businessName,
+                owner_id: user.id,
+                tenant_id: targetTenant.id,
+                slug: targetTenant.username,
+                business_name: businessName || targetTenant.business_name,
+                whatsapp_number: whatsappNumber || '',
+                address: address || '',
+                logo_text: logoText || businessName || targetTenant.business_name,
                 logo_url: logoUrl || null,
                 theme_color: themeColor || '#003791',
                 template_id: templateId || null,
@@ -57,15 +111,20 @@ export async function POST(request: Request) {
             .select()
             .single();
 
-        if (error) {
-            console.error('Supabase insert error:', error);
-            return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        if (insertError) throw insertError;
+
+        // SYNC back to tenants table for new pages too
+        if (businessName) {
+            await supabase
+                .from('tenants')
+                .update({ business_name: businessName })
+                .eq('id', targetTenant.id);
         }
 
-        return NextResponse.json({ success: true, slug: data.slug, page: data });
-    } catch (error) {
-        console.error('Error creating page:', error);
-        return NextResponse.json({ success: false, error: 'Failed to create page' }, { status: 500 });
+        return NextResponse.json({ success: true, slug: newPage.slug, page: newPage });
+    } catch (error: any) {
+        console.error('Builder API Error:', error);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
 

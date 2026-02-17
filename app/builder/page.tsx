@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
-import { Save, Loader2, ExternalLink, LogOut, User } from 'lucide-react';
+import PlayZoneTemplate from '@/components/templates/PlayZoneTemplate';
+import { Save, Loader2, ExternalLink, LogOut, User, LayoutTemplate } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -23,11 +24,14 @@ export default function BuilderPage() {
         address: 'Jalan Gaming No. 1, Jakarta Selatan',
         logoText: 'GO-PLAY',
         themeColor: '#003791',
+        templateId: '',
     });
 
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishResult, setPublishResult] = useState<{ slug: string } | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [editingPageId, setEditingPageId] = useState<string | null>(null); // Track specific ID
     const router = useRouter();
     const supabase = createClient();
 
@@ -45,12 +49,9 @@ export default function BuilderPage() {
             let query = supabase.from('pages').select('*');
 
             if (adminOverrideId) {
-                // If ID is provided, fetch that specific page (RLS must allow or user must be admin)
-                // Note: Standard client might still be blocked by RLS if not owner.
-                // However, for now we assume Admin has RLS bypass or policy allows read.
+                setEditingPageId(adminOverrideId);
                 query = query.eq('id', adminOverrideId);
             } else if (user) {
-                // Otherwise fetch user's own page
                 query = query.eq('owner_id', user.id);
             } else {
                 return;
@@ -59,14 +60,24 @@ export default function BuilderPage() {
             const { data, error } = await query.single();
 
             if (data) {
+                if (!adminOverrideId) setEditingPageId(data.id);
                 setFormData({
                     businessName: data.business_name || '',
                     whatsappNumber: data.whatsapp_number || '',
                     address: data.address || '',
                     logoText: data.logo_text || '',
                     themeColor: data.theme_color || '#003791',
+                    templateId: data.template_id || '',
                 });
             }
+
+            // Fetch all active templates
+            const { data: templatesData } = await supabase
+                .from('templates')
+                .select('*')
+                .eq('is_active', true)
+                .order('name');
+            setTemplates(templatesData || []);
         };
         init();
     }, [supabase]);
@@ -77,7 +88,7 @@ export default function BuilderPage() {
         router.refresh();
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
@@ -88,7 +99,10 @@ export default function BuilderPage() {
             const response = await fetch('/api/pages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    targetPageId: editingPageId
+                }),
             });
             const data = await response.json();
             if (data.success) {
@@ -107,7 +121,7 @@ export default function BuilderPage() {
     return (
         <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-background text-white">
             {/* Sidebar Editor */}
-            <div className="w-full md:w-[400px] flex-shrink-0 bg-surface border-r border-white/10 flex flex-col h-[50vh] md:h-full overflow-y-auto custom-scrollbar z-20 shadow-2xl">
+            <div className="w-full md:w-[400px] flex-shrink-0 bg-surface border-r border-white/10 flex flex-col h-[40vh] md:h-full overflow-y-auto custom-scrollbar z-20 shadow-2xl">
                 <div className="p-6 border-b border-white/10">
                     <div className="flex justify-between items-start mb-4">
                         <div>
@@ -198,6 +212,36 @@ export default function BuilderPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Template Selection */}
+                    <div className="space-y-4 pt-4 border-t border-white/10">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-primary">Template Website</h3>
+
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400">Pilih Template</label>
+                            <div className="relative">
+                                <LayoutTemplate className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <select
+                                    name="templateId"
+                                    value={formData.templateId}
+                                    onChange={handleInputChange}
+                                    className="w-full pl-10 bg-background border border-white/10 rounded-lg p-3 text-sm focus:border-primary focus:outline-none transition-colors appearance-none"
+                                >
+                                    <option value="">Default Template</option>
+                                    {templates.map(t => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {formData.templateId && templates.find(t => t.id === formData.templateId) && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {templates.find(t => t.id === formData.templateId)?.description}
+                                </p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="p-6 border-t border-white/10 bg-surface sticky bottom-0 z-10">
@@ -243,15 +287,21 @@ export default function BuilderPage() {
             </div>
 
             {/* Preview Area */}
-            <div className="flex-grow h-[50vh] md:h-full overflow-y-auto bg-black relative">
+            <div className="flex-grow h-[60vh] md:h-full overflow-y-auto bg-black relative">
                 <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur px-3 py-1 rounded-full border border-white/10 text-xs text-white">
                     Live Preview
                 </div>
                 {/* We wrap the LandingPage in a div that scales closer to typical view if needed, 
             but for now we just render it full sceren in this pane */}
                 <div className="origin-top-left transform scale-[0.8] md:scale-100 w-[125%] md:w-full h-full">
-                    {/* Scale trick for mobile view simulation if needed, but simplistic is better */}
-                    <StoryBrandTemplate {...formData} />
+                    {/* Dynamically render template based on selection */}
+                    {(() => {
+                        const selectedTemplate = templates.find(t => t.id === formData.templateId);
+                        const TemplateComponent = selectedTemplate?.component_name === 'PlayZoneTemplate'
+                            ? PlayZoneTemplate
+                            : StoryBrandTemplate;
+                        return <TemplateComponent {...formData} />;
+                    })()}
                 </div>
             </div>
         </div>
