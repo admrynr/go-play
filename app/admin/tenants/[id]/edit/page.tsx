@@ -199,7 +199,7 @@ export default function EditTenantPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
                                 <ImageUpload
                                     bucket="logos"
-                                    existingUrl={formData.logoUrl}
+                                    currentImage={formData.logoUrl}
                                     onUpload={(url) => setFormData({ ...formData, logoUrl: url })}
                                 />
                             </div>
