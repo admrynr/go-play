@@ -1,93 +1,97 @@
-# PROJECT: GO-PLAY PLATFORM (SAAS PS RENTAL MANAGEMENT)
+# Go-Play: PlayStation Rental SaaS Platform Specification
 
-## 1. PLATFORM OVERVIEW
-**Go-Play** is a comprehensive SaaS platform for PlayStation Rental businesses. It connects Rental Owners, Their Staff (Operators/Kitchen), and End-Users (Players).
+## 1. Project Overview
+**Go-Play** is a specialized SaaS (Software as a Service) platform designed to digitize and manage PlayStation Rental businesses ("Rental PS"). It serves three distinct user groups:
+1.  **Super Admin (Platform Owner)**: Manages the SaaS platform, creates tenant accounts.
+2.  **Rental Owner (Tenant)**: Manages their specific rental shop, stations, rates, and cash flow.
+3.  **Player (End User)**: Browses rental profiles, checks station availability, and books sessions.
 
-### Core Ecosystem
-1.  **Public Landing Page (Go-Play B2B)**: Sales page for Rental Owners to sign up.
-2.  **Super Admin Dashboard**: For Go-Play owners to manage tenants/subscriptions.
-3.  **Rental Admin Dashboard**: The core product for Rental Owners (POS, Station Management, Simple CRM).
-4.  **Player Interface (Mobile Web)**: Accessed via QR Code at each station for self-service.
+## 2. User Roles & Architecture
 
----
+### A. Super Admin (Role: 1)
+*   **Access:** `/admin` (Platform Dashboard)
+*   **Capabilities:**
+    *   **Tenant Management:** Create new rental owners (Tenants), edit credentials, and manage subscription status.
+    *   **Platform Oversight:** View all registered pages and aggregated stats.
+    *   **Access Control:** Super Admins can "impersonate" or manage specific tenant settings if needed (requires Super Admin password verification for sensitive actions).
 
-## 2. USER ROLES & JOURNEYS
+### B. Rental Owner / Tenant (Role: 2)
+*   **Access:** `/admin` (Rental Dashboard)
+*   **Capabilities:**
+    *   **Page Builder:** Customize their public landing page (`/[slug]`) with business name, address, WhatsApp, and theme colors.
+    *   **Station Management:** Manage inventory of Consoles (PS4, PS5, etc.) and TVs.
+    *   **Rate Management:** Configure granular rental rates:
+        *   **Hourly Rates:** Per console type (e.g., PS5 = 15k/hr, PS4 = 10k/hr).
+        *   **Packet Rates:** Session-based (e.g., "3 Hours Pass", "Night Packet").
+    *   **Shift Management:** POS-like features to Open/Close shifts and track daily revenue.
+    *   **Order Management:** (Future) Simple food/drink ordering system integration.
 
-### A. Rental Owner (Tenant)
-- **Goal**: Manage stations, track revenue, receive food orders.
-- **Key Features**:
-    - **Station Management**: Create/Edit stations (e.g., "TV 1", "VIP Room").
-    - **Menu Management**: Add food/drinks with prices and photos.
-    - **Active Session View**: See which stations are active, time remaining, and billing type.
-    - **Kitchen View**: Receive real-time orders from players.
-    - **QR Generator**: Print unique QR codes for each station.
-    - **Landing Page Builder**: Customize their public rental website (Hero, Contact, Pricing).
+### C. Player / End User (Public)
+*   **Access:** `/[slug]` (Tenant Public Page)
+*   **Capabilities:**
+    *   **Browse Shop:** View the rental shop's location, facilities, and available consoles.
+    *   **Live Availability:** See which stations are "Available", "In Use", or "Offline" (Real-time Status Board).
+    *   **Booking:** Select a console type and duration to initiate a booking via WhatsApp (automated message generation).
 
-### B. Player (End-User)
-- **Goal**: Order food, check time, request help without shouting.
-- **Journey**:
-    1.  Sit at Station (TV 1).
-    2.  Scan QR Code on the table.
-    3.  Open Web App (No install required).
-    4.  **View**: Time Remaining (if timer) / Time Elapsed (if billing).
-    5.  **Action**: "Order Food" -> Browse Menu -> Add to Cart -> Order.
-    6.  **Action**: "Call Operator" -> Request assistance.
-    7.  **Action**: "Tambah Waktu" -> Request extension.
+## 3. Tech Stack
 
-### C. Super Admin (Go-Play Owner)
-- **Goal**: Manage the SaaS platform.
-- **Key Features**:
-    - Create/Suspend Rental Owner accounts.
-    - Global Template Management.
+### Frontend
+*   **Framework:** Next.js 14+ (App Router)
+*   **Language:** TypeScript
+*   **Styling:** Tailwind CSS + Lucide React (Icons)
+*   **Components:** Custom components (Cards, Modals, Forms) with a focus on "Glassmorphism" and "Dark Mode" gaming aesthetics.
 
----
+### Backend & Database
+*   **Platform:** Supabase (Backend-as-a-Service)
+*   **Database:** PostgreSQL
+*   **Auth:** Supabase Auth (Email/Password)
+    *   **Role-Based Access Control (RBAC):** Custom `role` metadata in `auth.users` (1=Super Admin, 2=Tenant).
+*   **Storage:** Supabase Storage (for tenant logos, game covers).
 
-## 3. FEATURE SPECIFICATIONS
+## 4. Database Schema Highlights
 
-### [MODULE 1: RENTAL ADMIN DASHBOARD]
-**URL**: `/dashboard`
-- **Station Grid**:
-    - Cards representing TV/Consoles.
-    - Status Indicators: Idle (Green), Active (Blue), Cleaning/Maintenance (Red).
-    - Quick Actions: Start Session, Stop Session, Add Order.
-- **Order Management**:
-    - Incoming orders from QR codes.
-    - Notification sound for new orders.
-    - Status: Pending -> Preparing -> Served -> Paid.
-- **Billing System**:
-    - **Pre-paid (Timer)**: Auto-stop or alert when time ends.
-    - **Post-paid (Open/Loose)**: Count up timer, stop to calculate final bill.
+### Core Tables
+1.  **`users`**: Extends `auth.users` (managed via Supabase Auth).
+2.  **`pages`**: Represents a Tenant/Rental Shop.
+    *   `owner_id`: Link to User.
+    *   `slug`: Unique URL identifier.
+    *   `business_name`, `address`, `whatsapp_number`: Business info.
+    *   `theme_color`: Branding.
+3.  **`consoles` / `stations`**:
+    *   `page_id`: Tenant ownership.
+    *   `name`: "TV 1", "VIP 2".
+    *   `type`: "PS4", "PS5".
+    *   `status`: "available", "rented".
+4.  **`rental_rates`**:
+    *   JSON-based structure or relational table for flexible pricing (Hourly vs Packets).
+5.  **`shifts` & `transactions`**:
+    *   For financial tracking and cashier operations.
 
-### [MODULE 2: PLAYER INTERFACE]
-**URL**: `/[slug]/station/[station_id]`
-- **Design**: Mobile-first, Dark Mode, High Contrast.
-- **Home Screen**:
-    - Large Timer Display.
-    - "Bill So Far" (Estimated).
-    - Quick Buttons: [Menu] [Call Staff] [Extend].
-- **F&B Menu**:
-    - Categories (Drinks, Snacks, Meals).
-    - Add to Cart -> Confirm Order.
+## 5. Key Workflows
 
-### [MODULE 3: PUBLIC RENTAL SITE]
-**URL**: `/[slug]`
-- **Content**: Generated from the Rental Admin settings.
-- **Sections**: Hero, Unit Variants (PS4/PS5), Pricing, Location, Contact.
-- **Design**: StoryBrand Template (Dark/Gaming Theme).
+### Tenant Onboarding (Super Admin)
+1.  Super Admin logs in.
+2.  Creates a new User (Email/Pass) + Page (Business Name) via `/admin/websites/create`.
+3.  System generates a unique `slug` (e.g., `go-play.com/rental-adam`).
+4.  Tenant receives credentials.
 
----
+### Rental Management (Tenant)
+1.  Tenant logs in to `/admin`.
+2.  Updates Profile in "Page Builder".
+3.  Adds Consoles in "Stations".
+4.  Sets Pricing in "Rates".
+5.  (Daily) Opens Shift to start earning.
 
-## 4. TECHNICAL ARCHITECTURE
+### Booking (Player)
+1.  Player visits `go-play.com/[slug]`.
+2.  Checks "Status Board" for empty seats.
+3.  Clicks "Book" on a PS5.
+4.  Selects "2 Hours".
+5.  Redirects to WhatsApp: "Halo, saya mau rental PS5 selama 2 Jam di [Business Name]..."
 
-### Database Schema (Supabase)
-1.  **tenants** (users/owners): linked to `auth.users`.
-2.  **pages** (websites): stores branding, theme, contact info.
-3.  **stations**: `id`, `page_id`, `name`, `type`, `qr_code_url`.
-4.  **menu_items**: `id`, `page_id`, `name`, `price`, `category`, `image`, `is_available`.
-5.  **sessions**: `id`, `station_id`, `start_time`, `end_time`, `type` (timer/open), `status`.
-6.  **orders**: `id`, `session_id`, `total`, `status` (pending/served/paid).
-7.  **order_items**: `id`, `order_id`, `menu_item_id`, `qty`, `price`.
-
-### Security (RLS)
-- **Tenants**: Can only access data with their `page_id` / `owner_id`.
-- **Players**: Can only access `sessions` and `menu_items` linked to their scanned `station_id`.
+## 6. Directory Structure
+*   `/app/admin`: Authenticated routes for Super Admin and Tenants.
+    *   `layout.tsx`: Handles Auth checks and Sidebar navigation.
+*   `/app/[slug]`: Public routes for Tenant Pages.
+*   `/components`: Reusable UI elements.
+*   `/lib/supabase`: Supabase client initialization (Client & Server components).

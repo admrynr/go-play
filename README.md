@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Go-Play: PlayStation Rental SaaS Platform
 
-## Getting Started
+Go-Play is a modern SaaS platform designed to digitize PlayStation Rental businesses. It provides a comprehensive dashboard for owners to manage stations, rates, and revenue, while offering players a seamless booking experience via personalized rental pages.
 
-First, run the development server:
+## 🚀 Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Frontend
+-   **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
+-   **Language**: [TypeScript](https://www.typescriptlang.org/)
+-   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+-   **Icons**: [Lucide React](https://lucide.dev/)
+-   **UI Patterns**: Glassmorphism, Dark Mode, Mobile-First Design
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Backend
+-   **BaaS**: [Supabase](https://supabase.com/)
+-   **Database**: PostgreSQL
+-   **Authentication**: Supabase Auth (Email/Password)
+-   **Storage**: Supabase Storage
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📂 Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+-   `app/admin`: Protected routes for Super Admins and Rental Owners (Dashboards).
+-   `app/[slug]`: Public dynamic routes for Rental Shop pages (Player View).
+-   `app/api`: Server-side API routes (e.g., User Management).
+-   `components`: Reusable UI components (Buttons, Cards, Modals).
+-   `lib/supabase`: Supabase client configuration for Client/Server components.
 
-## Learn More
+## 🛠️ Getting Started
 
-To learn more about Next.js, take a look at the following resources:
+### Prerequisites
+-   Node.js 18+
+-   NPM or Yarn
+-   A Supabase project (URL & Anon Key)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Installation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/your-username/go-play.git
+    cd go-play
+    ```
 
-## Deploy on Vercel
+2.  **Install Dependencies**
+    ```bash
+    npm install
+    ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3.  **Environment Setup**
+    Create a `.env.local` file in the root directory and add your Supabase credentials:
+    ```env
+    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_for_admin_api
+    ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4.  **Run Development Server**
+    ```bash
+    npm run dev
+    ```
+
+5.  **Access the App**
+    -   Public: `http://localhost:3000`
+    -   Admin: `http://localhost:3000/login`
+
+## 🔑 Key Features
+
+### For Rental Owners
+-   **Page Builder**: Customize your shop's online presence.
+-   **Station Management**: Track PS4/PS5 availability.
+-   **Rate Configuration**: Set hourly or packet-based pricing.
+-   **Cashier System**: Open/Close shifts and track daily income.
+
+### For Players
+-   **Live Status**: View real-time console availability.
+-   **Easy Booking**: One-click WhatsApp booking integration.
+
+## 📜 License
+Private Software - All Rights Reserved.
