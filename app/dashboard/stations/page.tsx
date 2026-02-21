@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 
 interface RateConfig {
@@ -14,6 +15,8 @@ interface RateConfig {
 export default function StationsPage() {
     const [stations, setStations] = useState<any[]>([]);
     const [activeSessions, setActiveSessions] = useState<Record<string, any>>({});
+    const [stationRequests, setStationRequests] = useState<Record<string, any[]>>({}); // Station ID -> Requests
+    const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({}); // Station ID -> Orders
     const [loading, setLoading] = useState(true);
     const [rates, setRates] = useState<Record<string, RateConfig>>({});
 
@@ -58,6 +61,27 @@ export default function StationsPage() {
         fetchData();
         // Set default station type once rates are loaded
     }, []);
+
+    // Set up real-time subscriptions
+    useEffect(() => {
+        if (!pageId) return;
+
+        const channel = supabase.channel('dashboard-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_requests', filter: `page_id=eq.${pageId}` }, () => {
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `page_id=eq.${pageId}` }, () => {
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `page_id=eq.${pageId}` }, () => {
+                fetchData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [pageId, supabase]);
 
     const fetchData = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -112,6 +136,40 @@ export default function StationsPage() {
                 sessionsMap[s.station_id] = s;
             });
             setActiveSessions(sessionsMap);
+
+            // Fetch Pending Requests
+            const { data: requestsData } = await supabase
+                .from('station_requests')
+                .select('*, session:sessions(station_id)')
+                .eq('page_id', page.id)
+                .eq('status', 'pending');
+
+            const reqMap: Record<string, any[]> = {};
+            requestsData?.forEach(req => {
+                const sid = req.session?.station_id;
+                if (sid) {
+                    if (!reqMap[sid]) reqMap[sid] = [];
+                    reqMap[sid].push(req);
+                }
+            });
+            setStationRequests(reqMap);
+
+            // Fetch Pending Orders
+            const { data: ordersData } = await supabase
+                .from('orders')
+                .select('*, session:sessions(station_id), order_items(quantity, menu_items(name))')
+                .eq('page_id', page.id)
+                .eq('status', 'pending');
+
+            const orderMap: Record<string, any[]> = {};
+            ordersData?.forEach(order => {
+                const sid = order.session?.station_id;
+                if (sid) {
+                    if (!orderMap[sid]) orderMap[sid] = [];
+                    orderMap[sid].push(order);
+                }
+            });
+            setPendingOrders(orderMap);
         }
         setLoading(false);
     };
@@ -125,7 +183,7 @@ export default function StationsPage() {
         // If no types exist, warn user
         const availableTypes = Object.keys(rates);
         if (availableTypes.length === 0) {
-            alert('Please go to Settings to define Console Types first!');
+            toast.error('Please go to Settings to define Console Types first!');
             return;
         }
 
@@ -139,8 +197,9 @@ export default function StationsPage() {
             status: 'idle'
         });
 
-        if (error) alert('Failed to add station');
+        if (error) toast.error('Failed to add station');
         else {
+            toast.success('Station added successfully');
             setShowAddModal(false);
             setStationForm({ name: '', type: '' });
             fetchData();
@@ -192,7 +251,7 @@ export default function StationsPage() {
                 const result = await res.json();
                 if (!res.ok) throw new Error(result.error);
 
-                alert('Voucher Redeemed! Session Started.');
+                toast.success('Voucher Redeemed!', { description: 'Session Started.' });
                 setShowStartModal(null);
                 setVoucherCode('');
                 fetchData();
@@ -240,14 +299,15 @@ export default function StationsPage() {
                 await supabase.from('stations').update({ status: 'active' }).eq('id', showStartModal);
 
                 if (sessionError) {
-                    alert('Failed to start session');
+                    toast.error('Failed to start session');
                 } else {
+                    toast.success('Session started successfully');
                     setShowStartModal(null);
                     fetchData();
                 }
             }
         } catch (error: any) {
-            alert(error.message);
+            toast.error('Error starting session', { description: error.message });
         } finally {
             setLoading(false);
         }
@@ -262,34 +322,55 @@ export default function StationsPage() {
         setShowCheckoutModal(stationId);
         setCheckoutData(null); // Loading state inside modal
 
-        // 1. Calculate Rental Cost
+        // 1. Calculate Rental Cost and Times
         const endTime = new Date();
         const startTime = new Date(session.start_time);
+
+        const realTimeMs = endTime.getTime() - startTime.getTime();
+        const realTimeMins = Math.ceil(realTimeMs / (1000 * 60));
+
+        let billedMins = session.type === 'open' ? realTimeMins : (session.duration_minutes || 0);
+
         const rateConfig = rates[stationType] || { hourly: 0, halfDay: 0, daily: 0 };
         let rentalCost = 0;
+        let voucherDeductionAmt = 0;
 
-        if (session.type === 'open') {
-            const diffMs = endTime.getTime() - startTime.getTime();
-            const diffHours = diffMs / (1000 * 60 * 60);
-            rentalCost = Math.ceil(diffHours * rateConfig.hourly);
-            // Min charge 1 hour? Let's just do ceil.
-        } else if (session.type === 'timer') {
-            const hours = (session.duration_minutes || 0) / 60;
-            rentalCost = hours * rateConfig.hourly;
-        } else if (session.type === 'rental') {
-            // simplified recalc based on duration set
-            const mins = session.duration_minutes || 0;
-            if (mins >= 1440) rentalCost = (mins / 1440) * rateConfig.daily;
-            else if (mins >= 720) rentalCost = (mins / 720) * rateConfig.halfDay;
-            else rentalCost = (mins / 60) * rateConfig.hourly;
+        // Apply Voucher Logic (Reduces billed time by 60 mins, but not below 0)
+        let effectiveMins = billedMins;
+        let isVoucherApplied = false;
+
+        if (session.voucher_code) {
+            isVoucherApplied = true;
+            effectiveMins = Math.max(0, billedMins - 60);
         }
 
+        // Calculate Cost based on effectiveMins
+        if (session.type === 'open' || session.type === 'timer') {
+            const hours = effectiveMins / 60;
+            rentalCost = hours * rateConfig.hourly;
+
+            if (isVoucherApplied) {
+                voucherDeductionAmt = rateConfig.hourly; // 1 hour discount
+            }
+        } else if (session.type === 'rental') {
+            if (effectiveMins >= 1440) rentalCost = (effectiveMins / 1440) * rateConfig.daily;
+            else if (effectiveMins >= 720) rentalCost = (effectiveMins / 720) * rateConfig.halfDay;
+            else rentalCost = (effectiveMins / 60) * rateConfig.hourly;
+
+            if (isVoucherApplied) {
+                // Approximate 1 hour value
+                voucherDeductionAmt = rateConfig.hourly;
+            }
+        }
+
+        // Ensure cost isn't negative
+        rentalCost = Math.max(0, rentalCost);
+
         // 2. Fetch Orders
-        // Make sure to fetch confirmed orders if you have status logic, but let's grab all for session
         const { data: orders } = await supabase
             .from('orders')
             .select('*')
-            .eq('session_id', session.id); // Assuming simple checkout, unpaid orders
+            .eq('session_id', session.id);
 
         const ordersTotal = orders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
 
@@ -303,7 +384,10 @@ export default function StationsPage() {
             stationType,
             startTime,
             endTime,
-            voucherCode: session.voucher_code
+            billedMins,
+            realTimeMins,
+            voucherCode: session.voucher_code,
+            voucherDeductionAmt
         });
         setPaymentMethod('cash');
         setCashReceived('');
@@ -341,9 +425,10 @@ export default function StationsPage() {
         await supabase.from('stations').update({ status: 'idle' }).eq('id', showCheckoutModal);
 
         if (error) {
-            alert('Error completing transaction');
+            toast.error('Error completing transaction');
             setIsProcessingPayment(false);
         } else {
+            toast.success('Payment completed successfully');
             // Updated Flow: Don't close, go to loyalty step
             setLoyaltyStep('input');
             setIsProcessingPayment(false);
@@ -369,7 +454,7 @@ export default function StationsPage() {
             setLoyaltyData(data);
             setLoyaltyStep('result');
         } catch (error: any) {
-            alert(error.message);
+            toast.error('Failed to process loyalty points', { description: error.message });
         } finally {
             setLoyaltyLoading(false);
         }
@@ -397,6 +482,56 @@ export default function StationsPage() {
         };
 
         img.src = "data:image/svg+xml;base64," + btoa(svgData);
+    };
+
+    // --- Handling Requests ---
+    const handleResolveRequest = async (request: any, action: 'approve' | 'reject') => {
+        try {
+            if (action === 'approve') {
+                if (request.type === 'add_time') {
+                    // 1. Get current session
+                    const { data: session } = await supabase
+                        .from('sessions')
+                        .select('duration_minutes')
+                        .eq('id', request.session_id)
+                        .single();
+
+                    if (session) {
+                        const newDuration = (session.duration_minutes || 0) + (request.payload?.duration_minutes || 0);
+                        await supabase.from('sessions').update({ duration_minutes: newDuration }).eq('id', request.session_id);
+                    }
+                } else if (request.type === 'stop_session') {
+                    // Trigger checkout for this station
+                    const stationId = request.session?.station_id;
+                    if (stationId) {
+                        // Find station type
+                        const station = stations.find(s => s.id === stationId);
+                        if (station) {
+                            handleOpenCheckout(stationId, station.type);
+                        }
+                    }
+                }
+                // call_operator just needs to be marked resolved
+            }
+
+            // 2. Mark request as resolved/rejected
+            await supabase.from('station_requests').update({ status: action === 'approve' ? 'resolved' : 'rejected' }).eq('id', request.id);
+            fetchData();
+
+        } catch (error) {
+            console.error('Error resolving request:', error);
+            toast.error('Terjadi kesalahan saat memproses permintaan.');
+        }
+    };
+
+    const handleMarkOrderServed = async (orderId: string) => {
+        try {
+            await supabase.from('orders').update({ status: 'served' }).eq('id', orderId);
+            fetchData();
+            toast.success('Pesanan berhasil ditandai diantar');
+        } catch (error: any) {
+            toast.error('Gagal memperbarui pesanan', { description: error.message });
+        }
     };
 
     // --- Helpers ---
@@ -527,6 +662,68 @@ export default function StationsPage() {
                                 </div>
                             </div>
 
+                            {/* Pending Requests Alert */}
+                            {stationRequests[station.id] && stationRequests[station.id].length > 0 && (
+                                <div className="mb-4 space-y-2">
+                                    {stationRequests[station.id].map((req, idx) => (
+                                        <div key={idx} className={`p-3 rounded-lg border text-sm flex flex-col gap-2 ${req.type === 'stop_session' ? 'bg-red-500/10 border-red-500/30' :
+                                            req.type === 'add_time' ? 'bg-blue-500/10 border-blue-500/30' :
+                                                'bg-yellow-500/10 border-yellow-500/30'
+                                            }`}>
+                                            <div className="flex justify-between items-start">
+                                                <div className="font-bold flex items-center gap-1">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                    {req.type === 'stop_session' && <span className="text-red-400">Permintaan Berhenti</span>}
+                                                    {req.type === 'add_time' && <span className="text-blue-400">Tambah Waktu (+{req.payload?.duration_minutes}m)</span>}
+                                                    {req.type === 'call_operator' && <span className="text-yellow-400">Panggilan Operator</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleResolveRequest(req, 'approve')}
+                                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-1.5 rounded disabled:opacity-50"
+                                                >
+                                                    {req.type === 'stop_session' ? 'Proses Kasir' : 'Setujui'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleResolveRequest(req, 'reject')}
+                                                    className="flex-1 bg-white/10 hover:bg-white/20 text-white py-1.5 rounded disabled:opacity-50"
+                                                >
+                                                    Tolak
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Pending Orders Alert */}
+                            {pendingOrders[station.id] && pendingOrders[station.id].length > 0 && (
+                                <div className="mb-4 space-y-2">
+                                    {pendingOrders[station.id].map((order, idx) => (
+                                        <div key={idx} className="p-3 rounded-lg border text-sm flex flex-col gap-2 bg-purple-500/10 border-purple-500/30">
+                                            <div className="font-bold flex items-center gap-1 text-purple-400">
+                                                <ShoppingBag className="w-4 h-4" />
+                                                Pesanan F&B Baru
+                                            </div>
+                                            <div className="text-gray-300 ml-5 text-sm">
+                                                {order.order_items?.map((item: any, i: number) => (
+                                                    <div key={i}>{item.quantity}x {item.menu_items?.name}</div>
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleMarkOrderServed(order.id)}
+                                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-1.5 rounded disabled:opacity-50 mt-1"
+                                                >
+                                                    Tandai Diantar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Info */}
                             <div className="bg-black/20 rounded-xl p-4 mb-4">
                                 <div className="flex justify-between items-end mb-2">
@@ -630,16 +827,29 @@ export default function StationsPage() {
                                     <>
                                         {/* Summary List */}
                                         <div className="space-y-4 mb-6">
-                                            <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                                                <div>
-                                                    <p className="font-bold">Rental Cost</p>
-                                                    <p className="text-xs text-gray-400">
-                                                        Duration: {((new Date(checkoutData.endTime).getTime() - new Date(checkoutData.startTime).getTime()) / (1000 * 60)).toFixed(0)} mins
-                                                    </p>
+                                            <div className="flex justify-between items-start p-3 bg-white/5 rounded-lg border border-white/10">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-lg mb-2">Rental Session</p>
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="text-gray-400">Waktu Bermain (Real)</span>
+                                                            <span>{checkoutData.realTimeMins} mins</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="text-gray-400">Waktu Dipesan (Billed)</span>
+                                                            <span>{checkoutData.billedMins} mins</span>
+                                                        </div>
+                                                        {checkoutData.voucherCode && (
+                                                            <div className="flex justify-between text-sm text-green-400">
+                                                                <span>Potongan Voucher (-1 Jam)</span>
+                                                                <span>-{formatCurrency(checkoutData.voucherDeductionAmt)}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-mono font-bold">{formatCurrency(checkoutData.rentalCost)}</p>
-                                                    {checkoutData.voucherCode && <p className="text-[10px] text-green-400">Voucher Applied</p>}
+                                                <div className="text-right ml-4">
+                                                    <p className="text-xs text-gray-400 mb-1">Rental Cost</p>
+                                                    <p className="font-mono font-bold text-xl">{formatCurrency(checkoutData.rentalCost)}</p>
                                                 </div>
                                             </div>
 
@@ -802,20 +1012,22 @@ export default function StationsPage() {
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="p-6 border-t border-white/10 bg-surface">
-                            <button
-                                onClick={handleFinishPayment}
-                                disabled={isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(cashReceived) || 0) < (checkoutData?.grandTotal || 0))}
-                                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isProcessingPayment ? <span className="animate-pulse">Processing...</span> : (
-                                    <>
-                                        <CheckCircle className="w-5 h-5" />
-                                        Complete Payment
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                        {loyaltyStep === 'payment' && checkoutData && (
+                            <div className="p-6 border-t border-white/10 bg-surface">
+                                <button
+                                    onClick={handleFinishPayment}
+                                    disabled={isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(cashReceived) || 0) < (checkoutData?.grandTotal || 0))}
+                                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isProcessingPayment ? <span className="animate-pulse">Processing...</span> : (
+                                        <>
+                                            <CheckCircle className="w-5 h-5" />
+                                            Complete Payment
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

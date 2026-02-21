@@ -65,14 +65,17 @@ Go-Play is a modern SaaS platform designed to digitize PlayStation Rental busine
 ## 🔑 Key Features
 
 ### For Rental Owners
--   **Page Builder**: Customize your shop's online presence.
--   **Station Management**: Track PS4/PS5 availability.
+-   **Page Builder**: Customize your shop's online presence, choose from various templates.
+-   **Station Management**: Track PS4/PS5 availability and manage live sessions.
 -   **Rate Configuration**: Set hourly or packet-based pricing.
--   **Cashier System**: Open/Close shifts and track daily income.
+-   **POS & Cashier System**: Start/Stop timers, track F&B orders, handle Cash/QRIS payments.
+-   **Loyalty System**: Implement "Buy 10 Get 1 Free" automated via WhatsApp.
 
 ### For Players
--   **Live Status**: View real-time console availability.
+-   **Player Interface**: Scan station QR code to view live remaining time, bill, and order F&B.
+-   **Live Status**: View real-time console availability on the public landing page.
 -   **Easy Booking**: One-click WhatsApp booking integration.
+-   **Earn Rewards**: Automatically receive free hour vouchers via WhatsApp.
 
 ## 📜 License
 Private Software - All Rights Reserved.

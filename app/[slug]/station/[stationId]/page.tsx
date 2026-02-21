@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Clock, ShoppingCart, Bell, Coffee, Pizza, Package, UtensilsCrossed, X, Loader2 } from 'lucide-react';
+import { Clock, ShoppingCart, Bell, Coffee, Pizza, Package, UtensilsCrossed, X, Loader2, Square } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function StationPage() {
     const params = useParams();
@@ -18,16 +19,34 @@ export default function StationPage() {
     const [loading, setLoading] = useState(true);
     const [ordering, setOrdering] = useState(false);
 
+    // Add Time State
+    const [showAddTime, setShowAddTime] = useState(false);
+    const [addTimeMinutes, setAddTimeMinutes] = useState(60);
+    const [requesting, setRequesting] = useState(false);
+
     const supabase = createClient();
 
     useEffect(() => {
         fetchData();
+
+        // Setup real-time listener for the session
+        const channel = supabase.channel(`station-${stationId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `station_id=eq.${stationId}` }, () => {
+                fetchData();
+                setShowAddTime(false); // Close modal if admin approves
+            })
+            .subscribe();
+
+        // Local timer tick (every second)
         const interval = setInterval(() => {
-            fetchData(); // Sync data (maybe less frequent?)
-            setNow(new Date()); // Local timer tick
+            setNow(new Date());
         }, 1000);
-        return () => clearInterval(interval);
-    }, [stationId]);
+
+        return () => {
+            clearInterval(interval);
+            supabase.removeChannel(channel);
+        };
+    }, [stationId, supabase]);
 
     const [now, setNow] = useState(new Date());
 
@@ -108,7 +127,9 @@ export default function StationPage() {
 
             setCart([]);
             setActiveTab('session');
-            alert('Pesanan berhasil dibuat! Mohon tunggu sebentar.');
+            toast.success('Pesanan berhasil dibuat!', {
+                description: 'Mohon tunggu sebentar.',
+            });
         }
         setOrdering(false);
     };
@@ -116,15 +137,57 @@ export default function StationPage() {
     const callOperator = async () => {
         if (!session) return;
         if (!confirm('Panggil operator ke meja ini?')) return;
+        setRequesting(true);
 
-        // Create a dummy order for help
-        await supabase.from('orders').insert({
+        const { error } = await supabase.from('station_requests').insert({
             session_id: session.id,
             page_id: station.page_id,
-            status: 'pending',
-            total_amount: 0
+            type: 'call_operator',
+            status: 'pending'
         });
-        alert('Permintaan panggilan telah dikirim.');
+
+        setRequesting(false);
+        if (error) toast.error('Gagal memanggil operator', { description: error.message });
+        else toast.success('Operator telah dipanggil.');
+    };
+
+    const handleStopSession = async () => {
+        if (!session) return;
+        if (!confirm('Akhiri sesi dan minta bill ke kasir?')) return;
+        setRequesting(true);
+
+        const { error } = await supabase.from('station_requests').insert({
+            session_id: session.id,
+            page_id: station.page_id,
+            type: 'stop_session',
+            status: 'pending'
+        });
+
+        setRequesting(false);
+        if (error) toast.error('Gagal mengirim permintaan', { description: error.message });
+        else toast.success('Permintaan berhenti telah dikirim', { description: 'Mohon tunggu kasir memproses tagihan Anda.' });
+    };
+
+    const handleAddTime = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!session || addTimeMinutes <= 0) return;
+        setRequesting(true);
+
+        const { error } = await supabase.from('station_requests').insert({
+            session_id: session.id,
+            page_id: station.page_id,
+            type: 'add_time',
+            payload: { duration_minutes: addTimeMinutes },
+            status: 'pending'
+        });
+
+        setRequesting(false);
+        if (error) {
+            toast.error('Gagal mengirim permintaan', { description: error.message });
+        } else {
+            toast.success('Permintaan tambah waktu terkirim', { description: 'Menunggu persetujuan kasir.' });
+            setShowAddTime(false);
+        }
     };
 
     if (loading) return <div className="flex items-center justify-center h-screen bg-black text-white">Loading...</div>;
@@ -145,9 +208,10 @@ export default function StationPage() {
                 <div className="flex gap-2">
                     <button
                         onClick={callOperator}
-                        className="p-2 bg-red-600/20 text-red-500 rounded-full hover:bg-red-600 hover:text-white transition-colors"
+                        disabled={requesting}
+                        className="p-2 bg-red-600/20 text-red-500 rounded-full hover:bg-red-600 hover:text-white transition-colors disabled:opacity-50"
                     >
-                        <Bell className="w-5 h-5" />
+                        {requesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Bell className="w-5 h-5" />}
                     </button>
                 </div>
             </header>
@@ -226,21 +290,77 @@ export default function StationPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => setActiveTab('menu')}
-                                className="bg-surface border border-white/10 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-white/5 active:scale-95 transition-all"
+                                className="bg-surface border border-white/10 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-white/5 active:scale-95 transition-all w-full"
                             >
                                 <UtensilsCrossed className="w-8 h-8 text-orange-400" />
-                                <span className="font-bold">Pesan Makan</span>
+                                <span className="font-bold whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">Pesan Makan</span>
                             </button>
-                            <button
-                                className="bg-surface border border-white/10 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-white/5 active:scale-95 transition-all"
-                            >
-                                <Clock className="w-8 h-8 text-blue-400" />
-                                <span className="font-bold">Tambah Waktu</span>
-                            </button>
+
+                            {session && (session.type === 'timer' || session.type === 'rental') ? (
+                                <button
+                                    onClick={() => setShowAddTime(true)}
+                                    className="bg-surface border border-white/10 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-white/5 active:scale-95 transition-all w-full"
+                                >
+                                    <Clock className="w-8 h-8 text-blue-400" />
+                                    <span className="font-bold whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">Tambah Waktu</span>
+                                </button>
+                            ) : session && session.type === 'open' ? (
+                                <button
+                                    onClick={handleStopSession}
+                                    disabled={requesting}
+                                    className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-red-900/50 active:scale-95 transition-all text-red-400 w-full"
+                                >
+                                    {requesting ? <Loader2 className="w-8 h-8 animate-spin" /> : <Square className="w-8 h-8" fill="currentColor" />}
+                                    <span className="font-bold whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">Berhenti Main</span>
+                                </button>
+                            ) : null}
                         </div>
 
+                        {/* Add Time Form */}
+                        {showAddTime && (
+                            <div className="bg-surface border border-white/10 rounded-xl p-4 animate-in slide-in-from-top-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold">Tambah Waktu</h3>
+                                    <button onClick={() => setShowAddTime(false)}><X className="w-5 h-5 text-gray-400" /></button>
+                                </div>
+                                <form onSubmit={handleAddTime} className="space-y-4">
+                                    <div>
+                                        <label className="text-sm text-gray-400 mb-2 block">Durasi (Menit)</label>
+                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                            {[30, 60, 120].map(m => (
+                                                <button
+                                                    key={m}
+                                                    type="button"
+                                                    onClick={() => setAddTimeMinutes(m)}
+                                                    className={`py-2 text-sm rounded-lg border transition-colors ${addTimeMinutes === m ? 'bg-primary text-white border-primary' : 'border-white/10 hover:bg-white/5 text-gray-400'}`}
+                                                >
+                                                    {m}m
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={addTimeMinutes}
+                                            onChange={(e) => setAddTimeMinutes(Number(e.target.value))}
+                                            className="w-full bg-black/50 border border-white/20 rounded-lg p-3 focus:outline-none focus:border-primary text-white"
+                                            min="1"
+                                            required
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={requesting}
+                                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl disabled:opacity-50 flex justify-center items-center gap-2"
+                                    >
+                                        {requesting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Kirim Permintaan'}
+                                    </button>
+                                    <p className="text-xs text-gray-500 text-center">Admin akan mengkonfirmasi permintaan Anda</p>
+                                </form>
+                            </div>
+                        )}
+
                         {/* Promo Banner */}
-                        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-white/10 rounded-xl p-4 text-center">
+                        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-white/10 rounded-xl p-4 text-center mt-6">
                             <p className="font-bold text-sm">Promo Hari Ini</p>
                             <p className="text-xs text-gray-300">Diskon 10% untuk pemesanan makanan di atas 50rb!</p>
                         </div>

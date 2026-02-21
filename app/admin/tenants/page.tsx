@@ -27,11 +27,15 @@ export default function WebsitesPage() {
     }, []);
 
     const fetchTenants = async () => {
-        const { data } = await supabase
-            .from('tenants')
-            .select('*, pages(id, slug, templates(name))')
-            .order('created_at', { ascending: false });
-        setTenants(data || []);
+        try {
+            const res = await fetch('/api/admin/users');
+            const data = await res.json();
+            if (data.tenants) {
+                setTenants(data.tenants);
+            }
+        } catch (error) {
+            console.error('Failed to fetch tenants:', error);
+        }
         setLoading(false);
     };
 
@@ -146,7 +150,7 @@ export default function WebsitesPage() {
                             <thead className="bg-white/5 border-b border-white/10 text-left">
                                 <tr>
                                     <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Business Name</th>
-                                    <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Username / Slug</th>
+                                    <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Account (Username / Email)</th>
                                     <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -163,9 +167,10 @@ export default function WebsitesPage() {
                                                     <span className="font-bold">{tenant.business_name || 'New Rental'}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-primary font-mono text-sm leading-none">
+                                            <td className="p-4 font-mono text-sm leading-none">
                                                 <div className="flex flex-col gap-1">
-                                                    <span>@{tenant.username}</span>
+                                                    <span className="text-primary font-bold">@{tenant.username}</span>
+                                                    <span className="text-gray-400 text-xs">{tenant.email}</span>
                                                     {page && <span className="text-[10px] text-gray-500">/{page.slug}</span>}
                                                 </div>
                                             </td>

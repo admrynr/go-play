@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Gamepad2, Loader2, Lock } from 'lucide-react';
 
 export default function LoginPage() {
-    const [email, setEmail] = useState('');
+    const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -19,8 +19,24 @@ export default function LoginPage() {
         setError('');
 
         try {
+            let userEmail = loginId;
+
+            // If it doesn't look like an email, assume it's a username
+            if (!loginId.includes('@')) {
+                const { data: emailData, error: rpcError } = await supabase.rpc('get_user_email_by_username', {
+                    p_username: loginId
+                });
+
+                if (rpcError || !emailData) {
+                    setError('Username tidak ditemukan.');
+                    setIsLoading(false);
+                    return;
+                }
+                userEmail = emailData;
+            }
+
             const { data, error } = await supabase.auth.signInWithPassword({
-                email,
+                email: userEmail,
                 password,
             });
 
@@ -70,17 +86,17 @@ export default function LoginPage() {
                         )}
 
                         <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm text-gray-400">
-                                Email
+                            <label htmlFor="loginId" className="text-sm text-gray-400">
+                                Email atau Username
                             </label>
                             <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                id="loginId"
+                                type="text"
+                                value={loginId}
+                                onChange={(e) => setLoginId(e.target.value)}
                                 required
                                 className="w-full bg-background border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors"
-                                placeholder="admin@example.com"
+                                placeholder="Email atau username"
                             />
                         </div>
 

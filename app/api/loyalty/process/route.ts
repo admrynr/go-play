@@ -61,19 +61,18 @@ export async function POST(request: Request) {
         }
 
         // 3. Calculate Points (Hours)
-        // Round up to nearest hour? or specific logic? 
-        // Plan says "total_hours". Let's use session.duration_minutes / 60.
-        // Let's ceil it for generosity or float? 
-        // The table uses NUMERIC, so we can store 1.5. 
-        // But typically "Buy 10 hours" means 10 full hours.
-        // Let's use exact hours (float) for 'total_hours' but maybe 'current_points' is also float.
+        let sessionDurationMins = session.duration_minutes || 0;
 
-        const hoursPlayed = (session.duration_minutes || 0) / 60;
-        const pointsToAdd = Math.floor(hoursPlayed); // Standard: 1 point per FULL hour? Or just hours?
-        // Let's stick to: 1 hour = 1 point. 
-        // If they play 1.5 hours, do they get 1.5 points? 
-        // 'current_points' is numeric, so let's give exact amount.
-        const exactPoints = parseFloat(hoursPlayed.toFixed(1));
+        // If duration_minutes is not set (e.g. open/loose sessions), calculate from times
+        if (!sessionDurationMins && session.start_time && session.end_time) {
+            const start = new Date(session.start_time).getTime();
+            const end = new Date(session.end_time).getTime();
+            sessionDurationMins = Math.ceil((end - start) / 60000);
+        }
+
+        const hoursPlayed = sessionDurationMins / 60;
+        // 1 hour = 1000 points
+        const exactPoints = parseFloat((hoursPlayed * 1000).toFixed(0)); // e.g. 1.5 hours = 1500 points
 
         // 4. Find or Create Player
         let { data: player, error: playerError } = await supabaseAdmin
@@ -110,11 +109,12 @@ export async function POST(request: Request) {
         let rewardEarned = false;
 
         // 6. Check Reward
-        const target = tenant.loyalty_target_hours || 10;
+        // Target is 10,000 points = 10 hours
+        const target = tenant.loyalty_target_hours ? tenant.loyalty_target_hours * 1000 : 10000;
 
         if (newCurrentPoints >= target) {
             rewardEarned = true;
-            newCurrentPoints = newCurrentPoints - target; // Reset/Deduct points
+            newCurrentPoints = 0; // Reset points to 0
 
             // Generate Voucher
             // Format: V-[RANDOM]-[TenantSuffix?] -> Let's just use V-[RANDOM 5 CHARS]
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
         const totalPay = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(session.total_amount || 0);
 
         // Standard Message
-        let message = `Halo kak ${player.name || 'Gamer'}! Terima kasih sudah main di ${businessName}. Total: ${totalPay}. Poin kamu nambah ${exactPoints} jam! Total Poin: ${newCurrentPoints}/${target}. Yuk main lagi biar dapet GRATIS 1 JAM!`;
+        let message = `Halo kak ${player.name || 'Gamer'}! Terima kasih sudah main di ${businessName}. Total: ${totalPay}. Poin kamu nambah ${exactPoints} poin! Total Poin: ${newCurrentPoints}/${target}. Kumpulin 10000 poin biar dapet GRATIS 1 JAM!`;
 
         // Reward Message
         if (rewardEarned && voucherCode) {

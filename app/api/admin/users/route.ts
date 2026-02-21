@@ -35,7 +35,27 @@ export async function GET(request: Request) {
             return NextResponse.json({ user });
         }
 
-        return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+        // If no parameters, fetch all tenants with their emails
+        const { data: tenants, error: tenantsError } = await supabaseAdmin
+            .from('tenants')
+            .select('*, pages(id, slug, templates(name))')
+            .order('created_at', { ascending: false });
+
+        if (tenantsError) throw tenantsError;
+
+        // Fetch auth users to map emails
+        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        if (usersError) throw usersError;
+
+        const userMap = new Map(users.map(u => [u.id, u.email]));
+
+        const tenantsWithEmails = tenants?.map(t => ({
+            ...t,
+            email: userMap.get(t.user_id) || 'N/A'
+        }));
+
+        return NextResponse.json({ tenants: tenantsWithEmails });
+
     } catch (error: any) {
         console.error('Get User Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

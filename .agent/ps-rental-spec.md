@@ -12,26 +12,30 @@
 *   **Access:** `/admin` (Platform Dashboard)
 *   **Capabilities:**
     *   **Tenant Management:** Create new rental owners (Tenants), edit credentials, and manage subscription status.
+    *   **Template Management:** Create and manage landing page templates that tenants can choose from.
     *   **Platform Oversight:** View all registered pages and aggregated stats.
     *   **Access Control:** Super Admins can "impersonate" or manage specific tenant settings if needed (requires Super Admin password verification for sensitive actions).
 
 ### B. Rental Owner / Tenant (Role: 2)
 *   **Access:** `/admin` (Rental Dashboard)
 *   **Capabilities:**
-    *   **Page Builder:** Customize their public landing page (`/[slug]`) with business name, address, WhatsApp, and theme colors.
-    *   **Station Management:** Manage inventory of Consoles (PS4, PS5, etc.) and TVs.
+    *   **Page Builder:** Customize their public landing page (`/[slug]`) with business name, address, WhatsApp, theme colors, and select from available templates.
+    *   **Station Management:** Manage inventory of Consoles, print Station QR Codes for Players.
     *   **Rate Management:** Configure granular rental rates:
         *   **Hourly Rates:** Per console type (e.g., PS5 = 15k/hr, PS4 = 10k/hr).
         *   **Packet Rates:** Session-based (e.g., "3 Hours Pass", "Night Packet").
-    *   **Shift Management:** POS-like features to Open/Close shifts and track daily revenue.
-    *   **Order Management:** (Future) Simple food/drink ordering system integration.
+    *   **POS & Dashboard:** Start/Stop timers, manage active sessions, calculate billing (Cash/QRIS).
+    *   **F&B Order Management:** Receive and process food/drink orders directly from the Player Interface.
+    *   **Loyalty System:** Automatically track customer hours via WhatsApp, generate and redeem "Buy 10 Get 1 Free" vouchers.
 
 ### C. Player / End User (Public)
 *   **Access:** `/[slug]` (Tenant Public Page)
 *   **Capabilities:**
     *   **Browse Shop:** View the rental shop's location, facilities, and available consoles.
     *   **Live Availability:** See which stations are "Available", "In Use", or "Offline" (Real-time Status Board).
-    *   **Booking:** Select a console type and duration to initiate a booking via WhatsApp (automated message generation).
+    *   **Booking:** Select a console type and duration to initiate a booking via WhatsApp.
+    *   **Player Interface:** Scan a Station's QR Code to view remaining live time, order food & beverages, and check current session billing.
+    *   **Loyalty:** Earn points and receive automated WhatsApp notifications with free hour vouchers when targets are hit.
 
 ## 3. Tech Stack
 
@@ -52,20 +56,15 @@
 
 ### Core Tables
 1.  **`users`**: Extends `auth.users` (managed via Supabase Auth).
-2.  **`pages`**: Represents a Tenant/Rental Shop.
-    *   `owner_id`: Link to User.
-    *   `slug`: Unique URL identifier.
-    *   `business_name`, `address`, `whatsapp_number`: Business info.
-    *   `theme_color`: Branding.
-3.  **`consoles` / `stations`**:
-    *   `page_id`: Tenant ownership.
-    *   `name`: "TV 1", "VIP 2".
-    *   `type`: "PS4", "PS5".
-    *   `status`: "available", "rented".
-4.  **`rental_rates`**:
-    *   JSON-based structure or relational table for flexible pricing (Hourly vs Packets).
-5.  **`shifts` & `transactions`**:
-    *   For financial tracking and cashier operations.
+2.  **`tenants`**: Logical separation bridging Users and Pages. Uses a unique `username` (acts as the URL slug).
+3.  **`pages`**: Represents a Tenant's highly customized public facing profile.
+    *   `tenant_id`: Link to Tenants.
+    *   `template_id`: Selected Landing Page Template.
+4.  **`templates`**: Global landing page layouts managed by Super Admin.
+5.  **`stations`**: Rental seats (e.g., "TV 1", "VIP 2").
+6.  **`sessions`**: Active tracking of a rental period (timer/open billing) linked to a station.
+7.  **`orders`**: F&B purchases tied to an active session.
+8.  **`players` & `vouchers`**: Loyalty system tracking accumulated hours per WhatsApp number and active free-hour vouchers.
 
 ## 5. Key Workflows
 
