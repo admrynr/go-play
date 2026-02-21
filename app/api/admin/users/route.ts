@@ -140,7 +140,7 @@ export async function PATCH(request: Request) {
         }
 
         const body = await request.json();
-        const { userId, email, password, adminPassword } = body;
+        const { userId, email, password, adminPassword, username } = body;
 
         if (!userId || !adminPassword) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -162,6 +162,40 @@ export async function PATCH(request: Request) {
         }
 
         const supabaseAdmin = createAdminClient();
+
+        // Handle Username Update
+        if (username) {
+            const newUsername = username.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+            // Check availability (excluding current user's tenant)
+            const { data: existing } = await supabaseAdmin
+                .from('tenants')
+                .select('id')
+                .eq('username', newUsername)
+                .neq('user_id', userId)
+                .single();
+
+            if (existing) {
+                return NextResponse.json({ error: 'Username sudah digunakan tenant lain' }, { status: 400 });
+            }
+
+            // Update Tenant
+            const { error: tenantError } = await supabaseAdmin
+                .from('tenants')
+                .update({ username: newUsername })
+                .eq('user_id', userId);
+
+            if (tenantError) throw tenantError;
+
+            // Update Page Slug (sync with username)
+            const { error: pageError } = await supabaseAdmin
+                .from('pages')
+                .update({ slug: newUsername })
+                .eq('owner_id', userId);
+
+            if (pageError) throw pageError;
+        }
+
         const updates: any = {};
         if (email) {
             updates.email = email;
@@ -171,12 +205,11 @@ export async function PATCH(request: Request) {
             updates.password = password;
         }
 
-        if (Object.keys(updates).length === 0) {
-            return NextResponse.json({ success: true, message: 'No changes made' });
+        // Only call updateUserById if email or password updates exist
+        if (Object.keys(updates).length > 0) {
+            const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, updates);
+            if (error) throw error;
         }
-
-        const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, updates);
-        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, ArrowLeft, Save, Lock, Mail, User } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Lock, Mail, User, Globe } from 'lucide-react';
 import Link from 'next/link';
 
 export default function EditTenantPage() {
@@ -16,7 +16,9 @@ export default function EditTenantPage() {
     const [pageInfo, setPageInfo] = useState<any>(null);
     const [userId, setUserId] = useState<string | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'email' | 'password'>('email');
+    const [activeTab, setActiveTab] = useState<'username' | 'email' | 'password'>('username');
+    const [usernameForm, setUsernameForm] = useState({ username: '', adminPassword: '' });
+    const [usernameStatus, setUsernameStatus] = useState<'initial' | 'checking' | 'available' | 'taken'>('initial');
     const [emailForm, setEmailForm] = useState({ email: '', adminPassword: '' });
     const [passForm, setPassForm] = useState({ newPassword: '', confirmPassword: '', adminPassword: '' });
 
@@ -30,7 +32,7 @@ export default function EditTenantPage() {
         try {
             const { data: page, error } = await supabase
                 .from('pages')
-                .select('id, business_name, owner_id')
+                .select('id, business_name, owner_id, slug')
                 .eq('id', id)
                 .single();
 
@@ -43,6 +45,7 @@ export default function EditTenantPage() {
                 const data = await res.json();
                 if (data.user) {
                     setEmailForm(prev => ({ ...prev, email: data.user.email || '' }));
+                    setUsernameForm(prev => ({ ...prev, username: page.slug || '' }));
                 }
             }
         } catch (err) {
@@ -51,6 +54,64 @@ export default function EditTenantPage() {
             router.push('/admin/tenants');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkUsernameAvailability = async (username: string) => {
+        if (!username || username.length < 3) {
+            setUsernameStatus('initial');
+            return;
+        }
+
+        setUsernameStatus('checking');
+        try {
+            const res = await fetch(`/api/admin/users?check_username=${username}`);
+            const data = await res.json();
+
+            // Note: If username is same as current one, it should be considered available (valid)
+            // But the API returns 'available: false' if it exists.
+            // We need to check if the existing user is THIS user.
+            // However, the current API doesn't return WHO owns it, just boolean.
+            // Let's rely on the user understanding they can keep their own username,
+            // or we accept 'taken' if it matches current slug.
+
+            if (pageInfo && username === pageInfo.slug) {
+                setUsernameStatus('available');
+                return;
+            }
+
+            if (data.available) {
+                setUsernameStatus('available');
+            } else {
+                setUsernameStatus('taken');
+            }
+        } catch (error) {
+            console.error('Error checking username:', error);
+            setUsernameStatus('initial');
+        }
+    };
+
+    const handleUpdateUsername = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    username: usernameForm.username,
+                    adminPassword: usernameForm.adminPassword
+                })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Failed to update username');
+            alert('Username updated successfully!');
+            setUsernameForm(prev => ({ ...prev, adminPassword: '' }));
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -123,6 +184,12 @@ export default function EditTenantPage() {
 
                 <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
                     <button
+                        onClick={() => setActiveTab('username')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'username' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Update Username
+                    </button>
+                    <button
                         onClick={() => setActiveTab('email')}
                         className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'email' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -144,7 +211,59 @@ export default function EditTenantPage() {
                     </div>
                 </div>
 
-                {activeTab === 'email' ? (
+                {activeTab === 'username' && (
+                    <form onSubmit={handleUpdateUsername} className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Username (URL Slug)</label>
+                            <div className="relative">
+                                <Globe className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    required
+                                    className={`w-full pl-10 border rounded-lg px-3 py-2 focus:outline-none ${usernameStatus === 'available' ? 'border-green-500 focus:ring-green-500' :
+                                        usernameStatus === 'taken' ? 'border-red-500 focus:ring-red-500' :
+                                            'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                                        }`}
+                                    value={usernameForm.username}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                                        setUsernameForm({ ...usernameForm, username: val });
+                                        checkUsernameAvailability(val);
+                                    }}
+                                    placeholder="e.g. ps-rental-jaya"
+                                />
+                                {usernameStatus === 'checking' && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-blue-500" />}
+                            </div>
+                            {usernameStatus === 'available' && <p className="text-[10px] text-green-600 mt-1 font-bold">Username tersedia!</p>}
+                            {usernameStatus === 'taken' && <p className="text-[10px] text-red-600 mt-1 font-bold">Username sudah digunakan.</p>}
+                            <p className="text-[10px] text-gray-500 mt-1">Changing this will change the website URL.</p>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-4">
+                            <label className="block text-sm font-bold text-gray-900 mb-1">Confirm with Super Admin Password</label>
+                            <div className="relative">
+                                <Lock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-900" />
+                                <input
+                                    type="password"
+                                    required
+                                    placeholder="Enter YOUR password"
+                                    className="w-full pl-10 border border-gray-400 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600 focus:outline-none bg-blue-50/50"
+                                    value={usernameForm.adminPassword}
+                                    onChange={(e) => setUsernameForm({ ...usernameForm, adminPassword: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Update Username</>}
+                        </button>
+                    </form>
+                )}
+
+                {activeTab === 'email' && (
                     <form onSubmit={handleUpdateEmail} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Tenant Email Address</label>
@@ -183,7 +302,9 @@ export default function EditTenantPage() {
                             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Update Tenant Email</>}
                         </button>
                     </form>
-                ) : (
+                )}
+
+                {activeTab === 'password' && (
                     <form onSubmit={handleUpdatePassword} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">New Tenant Password</label>

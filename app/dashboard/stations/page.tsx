@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download } from 'lucide-react';
+import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle } from 'lucide-react';
 import QRCode from "react-qr-code";
 
 interface RateConfig {
@@ -32,12 +32,19 @@ export default function StationsPage() {
     const [sessionMode, setSessionMode] = useState<'onsite' | 'rental'>('onsite');
     const [onsiteForm, setOnsiteForm] = useState({ type: 'open', duration: 60 });
     const [rentalForm, setRentalForm] = useState({ package: 'daily', duration: 1, customerName: '' });
+    const [voucherCode, setVoucherCode] = useState('');
 
     // Checkout State
     const [checkoutData, setCheckoutData] = useState<any>(null); // Summary data
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>('cash');
     const [cashReceived, setCashReceived] = useState<string>(''); // string for input handling
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    // Loyalty State
+    const [loyaltyStep, setLoyaltyStep] = useState<'payment' | 'input' | 'result'>('payment');
+    const [waNumber, setWaNumber] = useState('');
+    const [loyaltyData, setLoyaltyData] = useState<any>(null);
+    const [loyaltyLoading, setLoyaltyLoading] = useState(false);
 
     const supabase = createClient();
     const [now, setNow] = useState(new Date());
@@ -155,53 +162,95 @@ export default function StationsPage() {
         if (!showStartModal || !pageId) return;
 
         setLoading(true);
-        const startTime = new Date().toISOString();
-        let endTime = null;
-        let durationMinutes = null;
-        let sessionType = '';
 
-        if (sessionMode === 'onsite') {
-            sessionType = onsiteForm.type === 'timer' ? 'timer' : 'open';
-            if (sessionType === 'timer') {
-                durationMinutes = onsiteForm.duration;
-                const end = new Date();
-                end.setMinutes(end.getMinutes() + durationMinutes);
-                endTime = end.toISOString();
-            }
-        } else {
-            sessionType = 'rental';
-            if (rentalForm.package === 'halfDay') {
-                durationMinutes = 12 * 60 * rentalForm.duration;
-            } else if (rentalForm.package === 'daily') {
-                durationMinutes = 24 * 60 * rentalForm.duration;
+        try {
+            // VOUCHER REDEMPTION PATH
+            if (voucherCode && voucherCode.trim().length > 0) {
+                // Calculate expected duration for session
+                let durationMinutes = 60; // Default 1 hour
+                if (sessionMode === 'onsite' && onsiteForm.type === 'timer') {
+                    durationMinutes = onsiteForm.duration;
+                } else if (sessionMode === 'rental') {
+                    if (rentalForm.package === 'halfDay') durationMinutes = 12 * 60 * rentalForm.duration;
+                    else if (rentalForm.package === 'daily') durationMinutes = 24 * 60 * rentalForm.duration;
+                    else durationMinutes = 60 * rentalForm.duration;
+                }
+
+                // Call API to Redeem & Start
+                const res = await fetch('/api/loyalty/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stationId: showStartModal,
+                        pageId: pageId,
+                        voucherCode: voucherCode.trim(),
+                        durationMinutes,
+                        type: sessionMode === 'onsite' ? (onsiteForm.type === 'open' ? 'open' : 'timer') : 'rental'
+                    })
+                });
+
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error);
+
+                alert('Voucher Redeemed! Session Started.');
+                setShowStartModal(null);
+                setVoucherCode('');
+                fetchData();
+
             } else {
-                durationMinutes = 60 * rentalForm.duration;
+                // NORMAL PATH (Existing Logic)
+                const startTime = new Date().toISOString();
+                let endTime = null;
+                let durationMinutes = null;
+                let sessionType = '';
+
+                if (sessionMode === 'onsite') {
+                    sessionType = onsiteForm.type === 'timer' ? 'timer' : 'open';
+                    if (sessionType === 'timer') {
+                        durationMinutes = onsiteForm.duration;
+                        const end = new Date();
+                        end.setMinutes(end.getMinutes() + durationMinutes);
+                        endTime = end.toISOString();
+                    }
+                } else {
+                    sessionType = 'rental';
+                    if (rentalForm.package === 'halfDay') {
+                        durationMinutes = 12 * 60 * rentalForm.duration;
+                    } else if (rentalForm.package === 'daily') {
+                        durationMinutes = 24 * 60 * rentalForm.duration;
+                    } else {
+                        durationMinutes = 60 * rentalForm.duration;
+                    }
+                    const end = new Date();
+                    end.setMinutes(end.getMinutes() + durationMinutes);
+                    endTime = end.toISOString();
+                }
+
+                const { error: sessionError } = await supabase.from('sessions').insert({
+                    station_id: showStartModal,
+                    page_id: pageId,
+                    start_time: startTime,
+                    end_time: endTime,
+                    duration_minutes: durationMinutes,
+                    type: sessionType,
+                    status: 'active',
+                    total_amount: 0,
+                });
+
+                await supabase.from('stations').update({ status: 'active' }).eq('id', showStartModal);
+
+                if (sessionError) {
+                    alert('Failed to start session');
+                } else {
+                    setShowStartModal(null);
+                    fetchData();
+                }
             }
-            const end = new Date();
-            end.setMinutes(end.getMinutes() + durationMinutes);
-            endTime = end.toISOString();
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setLoading(false);
         }
-
-        const { error: sessionError } = await supabase.from('sessions').insert({
-            station_id: showStartModal,
-            page_id: pageId,
-            start_time: startTime,
-            end_time: endTime,
-            duration_minutes: durationMinutes,
-            type: sessionType,
-            status: 'active',
-            total_amount: 0,
-        });
-
-        await supabase.from('stations').update({ status: 'active' }).eq('id', showStartModal);
-
-        if (sessionError) {
-            alert('Failed to start session');
-        } else {
-            setShowStartModal(null);
-            fetchData();
-        }
-        setLoading(false);
     };
 
     // --- Checkout Flow ---
@@ -253,10 +302,14 @@ export default function StationsPage() {
             grandTotal: rentalCost + ordersTotal,
             stationType,
             startTime,
-            endTime
+            endTime,
+            voucherCode: session.voucher_code
         });
         setPaymentMethod('cash');
         setCashReceived('');
+        setLoyaltyStep('payment');
+        setWaNumber('');
+        setLoyaltyData(null);
     };
 
     const handleFinishPayment = async () => {
@@ -289,11 +342,37 @@ export default function StationsPage() {
 
         if (error) {
             alert('Error completing transaction');
+            setIsProcessingPayment(false);
         } else {
-            setShowCheckoutModal(null);
-            fetchData();
+            // Updated Flow: Don't close, go to loyalty step
+            setLoyaltyStep('input');
+            setIsProcessingPayment(false);
+            fetchData(); // Refresh bg data
         }
-        setIsProcessingPayment(false);
+    };
+
+    const handleProcessLoyalty = async () => {
+        if (!checkoutData?.sessionId || !waNumber) return;
+        setLoyaltyLoading(true);
+        try {
+            const res = await fetch('/api/loyalty/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: checkoutData.sessionId,
+                    phone: waNumber
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            setLoyaltyData(data);
+            setLoyaltyStep('result');
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setLoyaltyLoading(false);
+        }
     };
 
     const handleDownloadQR = () => {
@@ -544,95 +623,181 @@ export default function StationsPage() {
                         </div>
 
                         <div className="p-6 overflow-y-auto flex-grow">
-                            {!checkoutData ? (
-                                <div className="text-center py-10"><h2 className="animate-pulse">Calculating Bill...</h2></div>
-                            ) : (
-                                <>
-                                    {/* Summary List */}
-                                    <div className="space-y-4 mb-6">
-                                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                                            <div>
-                                                <p className="font-bold">Rental Cost</p>
-                                                <p className="text-xs text-gray-400">
-                                                    Duration: {((new Date(checkoutData.endTime).getTime() - new Date(checkoutData.startTime).getTime()) / (1000 * 60)).toFixed(0)} mins
-                                                </p>
-                                            </div>
-                                            <p className="font-mono font-bold">{formatCurrency(checkoutData.rentalCost)}</p>
-                                        </div>
-
-                                        {checkoutData.orders.length > 0 && (
-                                            <div className="p-3 bg-white/5 rounded-lg space-y-2">
-                                                <p className="font-bold border-b border-white/10 pb-2 mb-2">F&B Orders</p>
-                                                {checkoutData.orders.map((o: any) => (
-                                                    <div key={o.id} className="flex justify-between text-sm">
-                                                        <span className="text-gray-400">Order #{o.id.slice(0, 4)}</span>
-                                                        <span>{formatCurrency(o.total_amount)}</span>
-                                                    </div>
-                                                ))}
-                                                <div className="flex justify-between font-bold pt-2 border-t border-white/10">
-                                                    <span>Subtotal F&B</span>
-                                                    <span>{formatCurrency(checkoutData.ordersTotal)}</span>
+                            {loyaltyStep === 'payment' && (
+                                !checkoutData ? (
+                                    <div className="text-center py-10"><h2 className="animate-pulse">Calculating Bill...</h2></div>
+                                ) : (
+                                    <>
+                                        {/* Summary List */}
+                                        <div className="space-y-4 mb-6">
+                                            <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                                                <div>
+                                                    <p className="font-bold">Rental Cost</p>
+                                                    <p className="text-xs text-gray-400">
+                                                        Duration: {((new Date(checkoutData.endTime).getTime() - new Date(checkoutData.startTime).getTime()) / (1000 * 60)).toFixed(0)} mins
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-mono font-bold">{formatCurrency(checkoutData.rentalCost)}</p>
+                                                    {checkoutData.voucherCode && <p className="text-[10px] text-green-400">Voucher Applied</p>}
                                                 </div>
                                             </div>
-                                        )}
 
-                                        <div className="flex justify-between items-center py-4 border-t-2 border-white/10">
-                                            <p className="text-xl font-bold">TOTAL TO PAY</p>
-                                            <p className="text-2xl font-bold text-primary">{formatCurrency(checkoutData.grandTotal)}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Payment Method */}
-                                    <div className="mb-6">
-                                        <label className="block text-sm font-bold mb-3 text-gray-400">Payment Method</label>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <button
-                                                onClick={() => setPaymentMethod('cash')}
-                                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
-                                                    }`}
-                                            >
-                                                <Banknote className="w-6 h-6" />
-                                                <span className="font-bold">CASH</span>
-                                            </button>
-                                            <button
-                                                onClick={() => setPaymentMethod('qris')}
-                                                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'qris' ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
-                                                    }`}
-                                            >
-                                                <QrCode className="w-6 h-6" />
-                                                <span className="font-bold">QRIS</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Cash Input */}
-                                    {paymentMethod === 'cash' && (
-                                        <div className="mb-6 p-4 bg-white/5 rounded-xl animate-in slide-in-from-top-2">
-                                            <label className="block text-sm text-gray-400 mb-1">Cash Received</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">Rp</span>
-                                                <input
-                                                    type="number"
-                                                    className="w-full bg-black/50 border border-white/20 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-green-500 focus:outline-none"
-                                                    value={cashReceived}
-                                                    onChange={(e) => setCashReceived(e.target.value)}
-                                                    placeholder="0"
-                                                />
-                                            </div>
-
-                                            {/* Change Calculation */}
-                                            {parseFloat(cashReceived) > 0 && (
-                                                <div className="mt-4 flex justify-between items-center text-lg">
-                                                    <span className="text-gray-400">Change / Kembalian:</span>
-                                                    <span className={`font-bold font-mono ${(parseFloat(cashReceived) - checkoutData.grandTotal) < 0 ? 'text-red-500' : 'text-green-400'
-                                                        }`}>
-                                                        {formatCurrency(Math.max(0, parseFloat(cashReceived) - checkoutData.grandTotal))}
-                                                    </span>
+                                            {checkoutData.orders.length > 0 && (
+                                                <div className="p-3 bg-white/5 rounded-lg space-y-2">
+                                                    <p className="font-bold border-b border-white/10 pb-2 mb-2">F&B Orders</p>
+                                                    {checkoutData.orders.map((o: any) => (
+                                                        <div key={o.id} className="flex justify-between text-sm">
+                                                            <span className="text-gray-400">Order #{o.id.slice(0, 4)}</span>
+                                                            <span>{formatCurrency(o.total_amount)}</span>
+                                                        </div>
+                                                    ))}
+                                                    <div className="flex justify-between font-bold pt-2 border-t border-white/10">
+                                                        <span>Subtotal F&B</span>
+                                                        <span>{formatCurrency(checkoutData.ordersTotal)}</span>
+                                                    </div>
                                                 </div>
                                             )}
+
+                                            <div className="flex justify-between items-center py-4 border-t-2 border-white/10">
+                                                <p className="text-xl font-bold">TOTAL TO PAY</p>
+                                                <p className="text-2xl font-bold text-primary">{formatCurrency(checkoutData.grandTotal)}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Method */}
+                                        <div className="mb-6">
+                                            <label className="block text-sm font-bold mb-3 text-gray-400">Payment Method</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button
+                                                    onClick={() => setPaymentMethod('cash')}
+                                                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
+                                                        }`}
+                                                >
+                                                    <Banknote className="w-6 h-6" />
+                                                    <span className="font-bold">CASH</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setPaymentMethod('qris')}
+                                                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'qris' ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-white/10 text-gray-500 hover:border-white/30'
+                                                        }`}
+                                                >
+                                                    <QrCode className="w-6 h-6" />
+                                                    <span className="font-bold">QRIS</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Cash Input */}
+                                        {paymentMethod === 'cash' && (
+                                            <div className="mb-6 p-4 bg-white/5 rounded-xl animate-in slide-in-from-top-2">
+                                                <label className="block text-sm text-gray-400 mb-1">Cash Received</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">Rp</span>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-black/50 border border-white/20 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-green-500 focus:outline-none"
+                                                        value={cashReceived}
+                                                        onChange={(e) => setCashReceived(e.target.value)}
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+
+                                                {/* Change Calculation */}
+                                                {parseFloat(cashReceived) > 0 && (
+                                                    <div className="mt-4 flex justify-between items-center text-lg">
+                                                        <span className="text-gray-400">Change / Kembalian:</span>
+                                                        <span className={`font-bold font-mono ${(parseFloat(cashReceived) - checkoutData.grandTotal) < 0 ? 'text-red-500' : 'text-green-400'
+                                                            }`}>
+                                                            {formatCurrency(Math.max(0, parseFloat(cashReceived) - checkoutData.grandTotal))}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            )}
+
+                            {/* LOYALTY INPUT STEP */}
+                            {loyaltyStep === 'input' && (
+                                <div className="space-y-6 text-center py-4 animate-in fade-in slide-in-from-bottom-4">
+                                    <div className="mx-auto w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+                                        <Monitor className="w-10 h-10 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold mb-1">Loyalty Points</h3>
+                                        <p className="text-sm text-gray-400">Input customer WhatsApp to earn points!</p>
+                                    </div>
+
+                                    <div className="relative text-left">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">+62</span>
+                                        <input
+                                            type="tel"
+                                            placeholder="8xxxxxxxx"
+                                            className="w-full bg-black/50 border border-white/20 rounded-xl py-4 pl-12 pr-4 text-xl font-mono focus:border-green-500 focus:outline-none"
+                                            value={waNumber}
+                                            onChange={(e) => setWaNumber(e.target.value.replace(/\D/g, ''))}
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={handleProcessLoyalty}
+                                            disabled={loyaltyLoading || !waNumber}
+                                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {loyaltyLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                            Submit & Check Rewards
+                                        </button>
+                                        <button onClick={() => setShowCheckoutModal(null)} className="text-sm text-gray-500 hover:text-white py-2">
+                                            Skip / Close
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* LOYALTY RESULT STEP */}
+                            {loyaltyStep === 'result' && loyaltyData && (
+                                <div className="space-y-6 text-center py-4 animate-in zoom-in-95">
+                                    <div className="bg-gradient-to-br from-green-500/20 to-blue-500/20 p-6 rounded-2xl border border-white/10">
+                                        <p className="text-sm text-green-400 font-bold mb-1">POINTS ADDED</p>
+                                        <p className="text-5xl font-black text-white tracking-tighter">+{loyaltyData.pointsAdded}</p>
+                                        <p className="text-xs text-gray-400 mt-2">Current Total: {loyaltyData.totalPoints}/{loyaltyData.targetPoints}</p>
+                                    </div>
+
+                                    {loyaltyData.rewardEarned ? (
+                                        <div className="animate-bounce bg-yellow-500/20 p-4 rounded-xl border border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+                                            <p className="font-bold text-yellow-400 text-lg flex items-center justify-center gap-2">
+                                                <Ticket className="w-6 h-6 fill-yellow-500" />
+                                                REWARD UNLOCKED!
+                                            </p>
+                                            <p className="text-sm text-yellow-200">Free 1 Hour Voucher Generated</p>
+                                            {loyaltyData.voucherCode && <p className="font-mono font-bold text-2xl mt-2 text-white bg-black/30 p-2 rounded-lg inline-block">{loyaltyData.voucherCode}</p>}
+                                        </div>
+                                    ) : (
+                                        <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                                            <div
+                                                className="bg-primary h-full transition-all duration-1000 ease-out"
+                                                style={{ width: `${Math.min(100, (loyaltyData.totalPoints / loyaltyData.targetPoints) * 100)}%` }}
+                                            />
                                         </div>
                                     )}
-                                </>
+
+                                    <a
+                                        href={loyaltyData.waUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={`block w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-lg hover:translate-y-[-2px] transition-all ${loyaltyData.rewardEarned ? 'bg-[#D4AF37] hover:bg-[#C5A028]' : 'bg-[#25D366] hover:bg-[#128C7E]'}`}
+                                    >
+                                        <MessageCircle className="w-6 h-6 fill-white" />
+                                        {loyaltyData.rewardEarned ? 'KIRIM VOUCHER HADIAH' : 'Kirim Struk ke WA'}
+                                    </a>
+
+                                    <button onClick={() => { setShowCheckoutModal(null); fetchData(); }} className="w-full py-3 text-gray-400 hover:text-white">
+                                        Close & Finish
+                                    </button>
+                                </div>
                             )}
                         </div>
 
@@ -783,8 +948,23 @@ export default function StationsPage() {
                                 </div>
                             )}
 
-                            <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl">
-                                Start Session
+                            <div className="pt-4 border-t border-white/10">
+                                <label className="block text-sm text-gray-400 mb-2">Voucher Code (Optional)</label>
+                                <div className="relative">
+                                    <Ticket className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+                                    <input
+                                        type="text"
+                                        placeholder="Enter code here..."
+                                        className="w-full bg-background border border-white/10 rounded-lg py-3 pl-10 pr-4 text-white focus:border-primary focus:outline-none uppercase"
+                                        value={voucherCode}
+                                        onChange={(e) => setVoucherCode(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                                {voucherCode ? 'Redeem & Start' : 'Start Session'}
                             </button>
                         </form>
                     </div>

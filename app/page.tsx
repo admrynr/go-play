@@ -20,12 +20,14 @@ export default function Home() {
             >
               Login
             </Link>
-            <Link
-              href="/login" // Ideally /register, but using login for now
+            <a
+              href="https://wa.me/6289688578285?text=halo%20saya%20berminat%20untuk%20daftar%20go-play"
+              target="_blank"
+              rel="noopener noreferrer"
               className="px-6 py-2 rounded-full bg-primary hover:bg-primary/90 text-white font-bold shadow-[0_0_20px_rgba(0,55,145,0.5)] transition-all"
             >
               Daftar Gratis
-            </Link>
+            </a>
           </div>
         </div>
       </nav>
@@ -52,13 +54,15 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up delay-300">
-            <Link
-              href="/login"
+            <a
+              href="https://wa.me/6289688578285?text=halo%20saya%20berminat%20untuk%20daftar%20go-play"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full sm:w-auto px-8 py-4 bg-primary text-white rounded-xl font-bold text-lg hover:bg-primary/90 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,55,145,0.4)] flex items-center justify-center gap-2"
             >
               Mulai Sekarang Gratis
               <ChevronRight className="w-5 h-5" />
-            </Link>
+            </a>
             <Link
               href="#features"
               className="w-full sm:w-auto px-8 py-4 bg-white/5 text-white border border-white/10 rounded-xl font-bold text-lg hover:bg-white/10 transition-all flex items-center justify-center"
@@ -127,12 +131,14 @@ export default function Home() {
               <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
                 Bergabung dengan ratusan pengusaha rental lainnya yang telah beralih ke sistem digital.
               </p>
-              <Link
-                href="/login"
+              <a
+                href="https://wa.me/6289688578285?text=halo%20saya%20berminat%20untuk%20daftar%20go-play"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary rounded-xl font-bold text-lg hover:bg-gray-100 transition-all hover:scale-105"
               >
                 Daftar GO-PLAY Sekarang
-              </Link>
+              </a>
             </div>
 
             {/* Background elements */}
