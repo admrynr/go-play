@@ -13,7 +13,17 @@ interface PlayZoneTemplateProps {
     logoText?: string;
     logoUrl?: string;
     themeColor?: string;
+    instagramLink?: string;
+    tiktokLink?: string;
+    operationalHours?: string;
+    loyaltyProgramActive?: boolean;
+    loyaltyTargetHours?: number;
+    isBuilderMode?: boolean;
+    customConfig?: any;
+    onConfigChange?: (key: string, value: string) => void;
 }
+
+import EditableText from '../EditableText';
 
 export default function PlayZoneTemplate({
     businessName = "GO-PLAY",
@@ -22,8 +32,24 @@ export default function PlayZoneTemplate({
     logoText = "GO-PLAY",
     logoUrl,
     themeColor = "#9333EA",
+    instagramLink,
+    tiktokLink,
+    operationalHours = "Senin - Minggu: 10:00 - 02:00 WIB",
+    loyaltyProgramActive = false,
+    loyaltyTargetHours = 10,
+    isBuilderMode = false,
+    customConfig = {},
+    onConfigChange,
 }: PlayZoneTemplateProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Convert HEX to RGB for shadow/glow effects
+    const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '147, 51, 234';
+    };
+
+    const themeRgb = hexToRgb(themeColor);
 
     const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
@@ -42,32 +68,59 @@ export default function PlayZoneTemplate({
     return (
         <div className="flex flex-col min-h-screen font-sans bg-[#0a0118] text-white selection:bg-purple-500 selection:text-white">
             <style jsx global>{`
+                :root {
+                    --theme-color: ${themeColor};
+                    --theme-rgb: ${themeRgb};
+                }
+                
                 @keyframes float {
                     0%, 100% { transform: translateY(0px); }
                     50% { transform: translateY(-20px); }
                 }
                 
                 @keyframes glow-pulse {
-                    0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(147, 51, 234, 0.5); }
-                    50% { opacity: 0.8; box-shadow: 0 0 40px rgba(147, 51, 234, 0.8); }
+                    0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(var(--theme-rgb), 0.5); }
+                    50% { opacity: 0.8; box-shadow: 0 0 40px rgba(var(--theme-rgb), 0.8); }
                 }
                 
+                .theme-text {
+                    color: var(--theme-color);
+                }
+
+                .theme-bg {
+                    background-color: var(--theme-color);
+                }
+                
+                .theme-border {
+                    border-color: var(--theme-color);
+                }
+
                 .animate-float {
                     animation: float 6s ease-in-out infinite;
                 }
                 
                 .glow-box {
-                    box-shadow: 0 0 30px rgba(147, 51, 234, 0.6), 0 0 60px rgba(236, 72, 153, 0.3);
+                    box-shadow: 0 0 30px rgba(var(--theme-rgb), 0.6), 0 0 60px rgba(236, 72, 153, 0.3);
                 }
                 
                 .glow-text {
-                    text-shadow: 0 0 20px rgba(147, 51, 234, 0.8), 0 0 40px rgba(236, 72, 153, 0.5);
+                    text-shadow: 0 0 20px rgba(var(--theme-rgb), 0.8), 0 0 40px rgba(236, 72, 153, 0.5);
                 }
                 
                 .gradient-border {
                     border: 2px solid transparent;
                     background: linear-gradient(#0a0118, #0a0118) padding-box,
-                                linear-gradient(135deg, #9333EA, #EC4899, #3B82F6) border-box;
+                                linear-gradient(135deg, var(--theme-color), #EC4899, #3B82F6) border-box;
+                }
+
+                .theme-gradient-text {
+                    background: linear-gradient(to right, var(--theme-color), #F472B6, #60A5FA);
+                    -webkit-background-clip: text;
+                    color: transparent;
+                }
+
+                .theme-gradient-bg {
+                    background: linear-gradient(to right, var(--theme-color), #EC4899, #3B82F6);
                 }
             `}</style>
 
@@ -111,8 +164,8 @@ export default function PlayZoneTemplate({
                             onClick={() => openWhatsApp("Saya mau booking meja")}
                             className="relative px-6 py-3 font-bold text-white rounded-xl overflow-hidden group"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 opacity-100 group-hover:opacity-90 transition-opacity"></div>
-                            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 blur-lg opacity-50"></div>
+                            <div className="absolute inset-0 theme-gradient-bg opacity-100 group-hover:opacity-90 transition-opacity"></div>
+                            <div className="absolute inset-0 theme-gradient-bg blur-lg opacity-50"></div>
                             <span className="relative z-10">Booking Sekarang</span>
                         </button>
                     </div>
@@ -165,7 +218,7 @@ export default function PlayZoneTemplate({
             <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden min-h-screen flex items-center">
                 {/* Animated Background */}
                 <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/30 rounded-full blur-[120px] animate-pulse"></div>
+                    <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-[120px] animate-pulse theme-bg opacity-30"></div>
                     <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-pink-600/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
                     <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
                 </div>
@@ -178,24 +231,57 @@ export default function PlayZoneTemplate({
                             transition={{ duration: 0.8 }}
                             className="lg:w-1/2 text-center lg:text-left"
                         >
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 mb-6">
-                                <Sparkles className="w-4 h-4 text-purple-400" />
-                                <span className="text-sm font-bold text-purple-300 uppercase tracking-widest">Next Gen Gaming</span>
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-6" style={{ background: `linear-gradient(to right, rgba(var(--theme-rgb), 0.2), rgba(236, 72, 153, 0.2))`, borderColor: `rgba(var(--theme-rgb), 0.3)` }}>
+                                <Sparkles className="w-4 h-4" style={{ color: themeColor }} />
+                                <span className="text-sm font-bold uppercase tracking-widest theme-text">
+                                    <EditableText
+                                        value={customConfig?.heroBadge || 'Next Gen Gaming'}
+                                        onSave={(v) => onConfigChange?.('heroBadge', v)}
+                                        isBuilderMode={isBuilderMode}
+                                    />
+                                </span>
                             </div>
 
                             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-6 leading-[0.9] uppercase">
-                                Main PS <br />
-                                <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent glow-text">
-                                    Tanpa Ribet
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroLine1 || 'Main PS'}
+                                    onSave={(v) => onConfigChange?.('heroLine1', v)}
+                                    isBuilderMode={isBuilderMode}
+                                />
+                                <br />
+                                <span className="theme-gradient-text glow-text inline-block">
+                                    <EditableText
+                                        element="span"
+                                        value={customConfig?.heroLine2 || 'Tanpa Ribet'}
+                                        onSave={(v) => onConfigChange?.('heroLine2', v)}
+                                        isBuilderMode={isBuilderMode}
+                                    />
                                 </span>
                                 <br />
-                                Bonus Melimpah
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroLine3 || 'Bonus Melimpah'}
+                                    onSave={(v) => onConfigChange?.('heroLine3', v)}
+                                    isBuilderMode={isBuilderMode}
+                                />
                             </h1>
 
                             <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                                Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.
-                                <span className="text-white font-bold block mt-3 text-2xl bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                    Main 10 Jam, Gratis 1 Jam!
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroDesc || 'Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.'}
+                                    onSave={(v) => onConfigChange?.('heroDesc', v)}
+                                    isBuilderMode={isBuilderMode}
+                                    className="block"
+                                />
+                                <span className="text-white font-bold block mt-3 text-2xl theme-gradient-text">
+                                    <EditableText
+                                        element="span"
+                                        value={customConfig?.heroPromo || (loyaltyProgramActive ? `Main ${loyaltyTargetHours} Jam, Gratis 1 Jam!` : 'Promo Spesial Hari Ini!')}
+                                        onSave={(v) => onConfigChange?.('heroPromo', v)}
+                                        isBuilderMode={isBuilderMode}
+                                    />
                                 </span>
                             </p>
 
@@ -228,20 +314,32 @@ export default function PlayZoneTemplate({
                         >
                             <div className="relative w-full max-w-lg mx-auto">
                                 {/* Glow Effect */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-3xl blur-3xl opacity-40 animate-pulse"></div>
+                                <div className="absolute inset-0 theme-gradient-bg rounded-3xl blur-3xl opacity-40 animate-pulse"></div>
 
                                 {/* Card */}
                                 <div className="relative gradient-border rounded-3xl p-8 backdrop-blur-xl bg-[#0a0118]/80">
                                     <div className="text-center">
                                         <div className="relative inline-block mb-6">
-                                            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full blur-2xl opacity-50 animate-float"></div>
-                                            <Gamepad2 className="relative w-32 h-32 text-purple-400" />
+                                            <div className="absolute inset-0 theme-gradient-bg rounded-full blur-2xl opacity-50 animate-float"></div>
+                                            <Gamepad2 className="relative w-32 h-32 theme-text" />
                                         </div>
 
-                                        <h3 className="text-3xl font-black mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                            ULTIMATE GAMING
+                                        <h3 className="text-3xl font-black mb-2 theme-gradient-text">
+                                            <EditableText
+                                                element="span"
+                                                value={customConfig?.heroCardTitle || 'ULTIMATE GAMING'}
+                                                onSave={(v) => onConfigChange?.('heroCardTitle', v)}
+                                                isBuilderMode={isBuilderMode}
+                                            />
                                         </h3>
-                                        <p className="text-gray-400 mb-8">PS5 & 4K 120Hz Ready</p>
+                                        <p className="text-gray-400 mb-8">
+                                            <EditableText
+                                                element="span"
+                                                value={customConfig?.heroCardSubtitle || 'PS5 & 4K 120Hz Ready'}
+                                                onSave={(v) => onConfigChange?.('heroCardSubtitle', v)}
+                                                isBuilderMode={isBuilderMode}
+                                            />
+                                        </p>
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="gradient-border rounded-xl p-4 backdrop-blur-xl bg-[#0a0118]/50">
@@ -341,8 +439,8 @@ export default function PlayZoneTemplate({
                             },
                             {
                                 icon: Trophy,
-                                title: "Loyalty Program 10:1",
-                                desc: "Setiap main 10 jam (akumulatif), otomatis dapat voucher 1 jam gratis. Makin sering main, makin untung!",
+                                title: `Loyalty Program ${loyaltyTargetHours}:1`,
+                                desc: `Setiap main ${loyaltyTargetHours} jam (akumulatif), otomatis dapat voucher 1 jam gratis. Makin sering main, makin untung!`,
                                 color: "blue"
                             },
                             {
@@ -469,27 +567,40 @@ export default function PlayZoneTemplate({
                                 )}
                             </div>
                             <p className="text-gray-400 max-w-sm leading-relaxed mb-6">
-                                Rental PS Modern dengan fasilitas terlengkap dan sistem digital pertama di kota ini.
-                                Experience gaming yang sebenarnya ada di sini.
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.footerDesc || 'Rental PS Modern dengan fasilitas terlengkap dan sistem digital pertama di kota ini. Experience gaming yang sebenarnya ada di sini.'}
+                                    onSave={(v) => onConfigChange?.('footerDesc', v)}
+                                    isBuilderMode={isBuilderMode}
+                                    className="block"
+                                />
                             </p>
                             <div className="flex gap-3">
-                                <a href="#" className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center hover:scale-110 transition-transform">
-                                    <Instagram className="w-6 h-6 text-white" />
-                                </a>
+                                {instagramLink && (
+                                    <a href={instagramLink} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-full theme-gradient-bg flex items-center justify-center hover:scale-110 transition-transform">
+                                        <Instagram className="w-6 h-6 text-white" />
+                                    </a>
+                                )}
+                                {tiktokLink && (
+                                    <a href={tiktokLink} target="_blank" rel="noopener noreferrer" className="w-12 h-12 rounded-full theme-gradient-bg flex items-center justify-center hover:scale-110 transition-transform font-bold text-white">
+                                        <svg className="w-5 h-5 text-white fill-current" viewBox="0 0 24 24">
+                                            <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.04.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 2.23-.9 4.45-2.35 6.08-1.48 1.64-3.63 2.68-5.87 2.91-2.22.22-4.52-.31-6.42-1.57C-.04 22.95-.56 20.35.34 18.06c.66-1.68 1.95-3.11 3.53-3.95 1.54-.83 3.33-1.07 5.06-.88v4.06c-1.12-.13-2.3.06-3.23.63-.9.55-1.55 1.48-1.78 2.52-.16.71-.16 1.46.06 2.15.2.62.6 1.18 1.1 1.6.53.44 1.25.66 1.94.67 1.14.02 2.26-.35 3.07-1.1.75-.68 1.22-1.68 1.3-2.73.13-3.86.07-7.72.1-11.58.01-3.15-.02-6.3.02-9.45z" />
+                                        </svg>
+                                    </a>
+                                )}
                             </div>
                         </div>
 
                         <div>
                             <h3 className="font-black mb-6 uppercase tracking-wider text-lg">Lokasi</h3>
                             <div className="flex gap-3 text-gray-400 mb-4">
-                                <MapPin className="w-5 h-5 shrink-0 text-purple-400" />
+                                <MapPin className="w-5 h-5 shrink-0 theme-text" />
                                 <p>{address}</p>
                             </div>
                             <div className="flex gap-3 text-gray-400">
-                                <Clock className="w-5 h-5 shrink-0 text-purple-400" />
+                                <Clock className="w-5 h-5 shrink-0 theme-text" />
                                 <div>
-                                    <p>Senin - Minggu</p>
-                                    <p className="text-white font-bold">10:00 - 02:00 WIB</p>
+                                    <p className="text-white font-bold">{operationalHours}</p>
                                 </div>
                             </div>
                         </div>

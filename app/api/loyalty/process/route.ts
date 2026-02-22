@@ -71,8 +71,8 @@ export async function POST(request: Request) {
         }
 
         const hoursPlayed = sessionDurationMins / 60;
-        // 1 hour = 1000 points
-        const exactPoints = parseFloat((hoursPlayed * 1000).toFixed(0)); // e.g. 1.5 hours = 1500 points
+        // For rental sessions, no points are awarded, but voucher logic stays intact
+        const exactPoints = session.type === 'rental' ? 0 : parseFloat((hoursPlayed * 1000).toFixed(0)); // e.g. 1.5 hours = 1500 points
 
         // 4. Find or Create Player
         let { data: player, error: playerError } = await supabaseAdmin
@@ -109,8 +109,8 @@ export async function POST(request: Request) {
         let rewardEarned = false;
 
         // 6. Check Reward
-        // Target is 10,000 points = 10 hours
-        const target = tenant.loyalty_target_hours ? tenant.loyalty_target_hours * 1000 : 10000;
+        // Target is mathematically hours * 1000. Since it's stored in minutes, divide by 60 first.
+        const target = tenant.loyalty_target_hours ? (tenant.loyalty_target_hours / 60) * 1000 : 10000;
 
         if (newCurrentPoints >= target) {
             rewardEarned = true;
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
         const totalPay = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(session.total_amount || 0);
 
         // Standard Message
-        let message = `Halo kak ${player.name || 'Gamer'}! Terima kasih sudah main di ${businessName}. Total: ${totalPay}. Poin kamu nambah ${exactPoints} poin! Total Poin: ${newCurrentPoints}/${target}. Kumpulin 10000 poin biar dapet GRATIS 1 JAM!`;
+        let message = `Halo kak ${player.name || 'Gamer'}! Terima kasih sudah main di ${businessName}. Total: ${totalPay}. Poin kamu nambah ${exactPoints} poin! Total Poin: ${newCurrentPoints}/${target}. Kumpulin ${target} poin biar dapet GRATIS 1 JAM!`;
 
         // Reward Message
         if (rewardEarned && voucherCode) {

@@ -11,7 +11,7 @@ async function getPageData(slug: string) {
 
     const { data, error } = await supabase
         .from('pages')
-        .select('*, templates(component_name)')
+        .select('*, templates(component_name), tenants(loyalty_program_active, loyalty_target_hours)')
         .eq('slug', slug)
         .single();
 
@@ -51,6 +51,10 @@ export default async function DynamicPage({ params }: PageProps) {
             themeColor={pageData.theme_color}
             logoText={pageData.logo_text}
             logoUrl={pageData.logo_url}
+            instagramLink={pageData.instagram_link}
+            tiktokLink={pageData.tiktok_link}
+            operationalHours={pageData.operational_hours}
+            customConfig={pageData.custom_config}
         />
     );
 }

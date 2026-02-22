@@ -13,7 +13,17 @@ interface StoryBrandTemplateProps {
     logoText?: string;
     logoUrl?: string; // Uploaded logo image URL
     themeColor?: string;
+    instagramLink?: string;
+    tiktokLink?: string;
+    operationalHours?: string;
+    loyaltyProgramActive?: boolean;
+    loyaltyTargetHours?: number;
+    isBuilderMode?: boolean;
+    customConfig?: any;
+    onConfigChange?: (key: string, value: string) => void;
 }
+
+import EditableText from '../EditableText';
 
 export default function StoryBrandTemplate({
     businessName = "GO-PLAY",
@@ -22,6 +32,14 @@ export default function StoryBrandTemplate({
     logoText = "GO-PLAY",
     logoUrl,
     themeColor = "#003791",
+    instagramLink,
+    tiktokLink,
+    operationalHours = "Senin - Minggu: 09:00 - 23:00",
+    loyaltyProgramActive = false,
+    loyaltyTargetHours = 10,
+    isBuilderMode = false,
+    customConfig = {},
+    onConfigChange,
 }: StoryBrandTemplateProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -146,13 +164,44 @@ export default function StoryBrandTemplate({
                                 Next Gen Rental Experience
                             </div>
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-6 leading-tight uppercase text-white">
-                                Main PS <br />
-                                <span className="text-primary glow-text">Tanpa Ribet,</span><br />
-                                Bonus Melimpah.
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroLine1 || 'Main PS'}
+                                    onSave={(v) => onConfigChange?.('heroLine1', v)}
+                                    isBuilderMode={isBuilderMode}
+                                />
+                                <br />
+                                <span className="text-primary glow-text">
+                                    <EditableText
+                                        element="span"
+                                        value={customConfig?.heroLine2 || 'Tanpa Ribet,'}
+                                        onSave={(v) => onConfigChange?.('heroLine2', v)}
+                                        isBuilderMode={isBuilderMode}
+                                    />
+                                </span><br />
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroLine3 || 'Bonus Melimpah.'}
+                                    onSave={(v) => onConfigChange?.('heroLine3', v)}
+                                    isBuilderMode={isBuilderMode}
+                                />
                             </h1>
                             <p className="text-gray-400 text-base md:text-lg mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                                Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.
-                                <span className="text-white font-bold block mt-2">Main 10 Jam, Gratis 1 Jam!</span>
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.heroDesc || 'Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.'}
+                                    onSave={(v) => onConfigChange?.('heroDesc', v)}
+                                    isBuilderMode={isBuilderMode}
+                                    className="block"
+                                />
+                                <span className="text-white font-bold block mt-2">
+                                    <EditableText
+                                        element="span"
+                                        value={customConfig?.heroPromo || (loyaltyProgramActive ? `Main ${loyaltyTargetHours} Jam, Gratis 1 Jam!` : 'Promo Spesial Hari Ini!')}
+                                        onSave={(v) => onConfigChange?.('heroPromo', v)}
+                                        isBuilderMode={isBuilderMode}
+                                    />
+                                </span>
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                                 <button
@@ -382,34 +431,56 @@ export default function StoryBrandTemplate({
                                 ) : (
                                     <>
                                         <Gamepad2 className="w-8 h-8 text-primary" />
-                                        <span className="font-heading font-bold text-2xl tracking-wider text-white">{logoText || businessName}</span>
+                                        <span className="font-heading font-bold text-2xl tracking-wider text-white">
+                                            <EditableText
+                                                element="span"
+                                                value={logoText || businessName}
+                                                onSave={(v) => onConfigChange?.('logoText', v)}
+                                                isBuilderMode={isBuilderMode}
+                                            />
+                                        </span>
                                     </>
                                 )}
                             </div>
-                            <p className="text-gray-500 max-w-sm leading-relaxed mb-6">
-                                Rental PS Modern dengan fasilitas terlengkap dan sistem digital pertama di kota ini.
-                                Experience gaming yang sebenarnya ada di sini.
+                            <p className="text-gray-400 mb-6 font-medium">
+                                <EditableText
+                                    element="span"
+                                    value={customConfig?.footerDesc || 'Memberikan pengalaman gaming terbaik dengan sistem modern, transparan, dan nyaman. Experience gaming yang sebenarnya ada di sini.'}
+                                    onSave={(v) => onConfigChange?.('footerDesc', v)}
+                                    isBuilderMode={isBuilderMode}
+                                    className="block"
+                                />
                             </p>
                             <div className="flex gap-4">
-                                <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-primary hover:text-white transition-all">
-                                    <Instagram className="w-5 h-5" />
-                                </a>
+                                {instagramLink && (
+                                    <a href={instagramLink} target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 hover:bg-[var(--color-primary)] rounded-full transition-colors flex items-center justify-center">
+                                        <Instagram className="w-5 h-5 text-gray-400 hover:text-white" />
+                                    </a>
+                                )}
+                                {tiktokLink && (
+                                    <a href={tiktokLink} target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 hover:bg-[var(--color-primary)] rounded-full transition-colors flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-gray-400 hover:text-white fill-current" viewBox="0 0 24 24">
+                                            <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.04.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 2.23-.9 4.45-2.35 6.08-1.48 1.64-3.63 2.68-5.87 2.91-2.22.22-4.52-.31-6.42-1.57C-.04 22.95-.56 20.35.34 18.06c.66-1.68 1.95-3.11 3.53-3.95 1.54-.83 3.33-1.07 5.06-.88v4.06c-1.12-.13-2.3.06-3.23.63-.9.55-1.55 1.48-1.78 2.52-.16.71-.16 1.46.06 2.15.2.62.6 1.18 1.1 1.6.53.44 1.25.66 1.94.67 1.14.02 2.26-.35 3.07-1.1.75-.68 1.22-1.68 1.3-2.73.13-3.86.07-7.72.1-11.58.01-3.15-.02-6.3.02-9.45z" />
+                                        </svg>
+                                    </a>
+                                )}
                             </div>
                         </div>
 
-                        <div>
-                            <h3 className="font-bold text-white mb-6 uppercase tracking-wider">Lokasi</h3>
-                            <div className="flex gap-3 text-gray-400 mb-4">
-                                <MapPin className="w-5 h-5 shrink-0 text-primary" />
-                                <p>{address}</p>
-                            </div>
-                            <div className="flex gap-3 text-gray-400">
-                                <Clock className="w-5 h-5 shrink-0 text-primary" />
-                                <div>
-                                    <p>Senin - Minggu</p>
-                                    <p className="text-white">10:00 - 02:00 WIB</p>
-                                </div>
-                            </div>
+                        <div className="col-span-1 border-gray-800 pb-6 mb-6">
+                            <h3 className="font-bold text-lg mb-6 text-white border-b-2 border-[var(--color-primary)] pb-2 inline-block">Alamat</h3>
+                            <ul className="space-y-4">
+                                <li className="flex gap-3 text-gray-400">
+                                    <MapPin className="w-5 h-5 text-[var(--color-primary)] shrink-0" />
+                                    <span>{address}</span>
+                                </li>
+                                <li className="flex gap-3 text-gray-400">
+                                    <Clock className="w-5 h-5 text-[var(--color-primary)] shrink-0" />
+                                    <div>
+                                        <span className="block font-medium text-white">{operationalHours}</span>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>
 
                         <div>

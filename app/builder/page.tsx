@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import StoryBrandTemplate from '@/components/templates/StoryBrandTemplate';
 import PlayZoneTemplate from '@/components/templates/PlayZoneTemplate';
+import ImageUpload from '@/components/ImageUpload';
 import { Save, Loader2, ExternalLink, LogOut, User, LayoutTemplate } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -23,8 +24,15 @@ export default function BuilderPage() {
         whatsappNumber: '6281234567890',
         address: 'Jalan Gaming No. 1, Jakarta Selatan',
         logoText: 'GO-PLAY',
+        logoUrl: '',
         themeColor: '#003791',
         templateId: '',
+        instagramLink: '',
+        tiktokLink: '',
+        operationalHours: 'Senin - Minggu: 09:00 - 23:00',
+        customConfig: {} as any,
+        loyaltyProgramActive: false,
+        loyaltyTargetHours: 10,
     });
 
     const [isPublishing, setIsPublishing] = useState(false);
@@ -46,7 +54,7 @@ export default function BuilderPage() {
             const params = new URLSearchParams(window.location.search);
             const adminOverrideId = params.get('id');
 
-            let query = supabase.from('pages').select('*');
+            let query = supabase.from('pages').select('*, tenants(loyalty_program_active, loyalty_target_hours)');
 
             if (adminOverrideId) {
                 setEditingPageId(adminOverrideId);
@@ -66,8 +74,15 @@ export default function BuilderPage() {
                     whatsappNumber: data.whatsapp_number || '',
                     address: data.address || '',
                     logoText: data.logo_text || '',
+                    logoUrl: data.logo_url || '',
                     themeColor: data.theme_color || '#003791',
                     templateId: data.template_id || '',
+                    instagramLink: data.instagram_link || '',
+                    tiktokLink: data.tiktok_link || '',
+                    operationalHours: data.operational_hours || 'Senin - Minggu: 09:00 - 23:00',
+                    customConfig: data.custom_config || {},
+                    loyaltyProgramActive: data.tenants?.loyalty_program_active || false,
+                    loyaltyTargetHours: data.tenants?.loyalty_target_hours ? data.tenants.loyalty_target_hours / 60 : 10,
                 });
             }
 
@@ -179,6 +194,56 @@ export default function BuilderPage() {
                                 onChange={handleInputChange}
                                 rows={3}
                                 className="w-full bg-background border border-white/10 rounded-lg p-3 text-sm focus:border-primary focus:outline-none transition-colors resize-none"
+                            />
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-white/5">
+                            <label className="text-xs text-gray-400">Logo URL / Upload Logo</label>
+                            <ImageUpload
+                                onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
+                                currentImage={formData.logoUrl}
+                                bucket="public_assets"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Socials & Operational Hours */}
+                    <div className="space-y-4 pt-4 border-t border-white/10">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-primary">Media Sosial & Jam Operasional</h3>
+
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400">Link Instagram</label>
+                            <input
+                                type="url"
+                                name="instagramLink"
+                                value={formData.instagramLink}
+                                onChange={handleInputChange}
+                                placeholder="https://instagram.com/..."
+                                className="w-full bg-background border border-white/10 rounded-lg p-3 text-sm focus:border-primary focus:outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400">Link TikTok</label>
+                            <input
+                                type="url"
+                                name="tiktokLink"
+                                value={formData.tiktokLink}
+                                onChange={handleInputChange}
+                                placeholder="https://tiktok.com/@..."
+                                className="w-full bg-background border border-white/10 rounded-lg p-3 text-sm focus:border-primary focus:outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400">Jam Operasional</label>
+                            <input
+                                type="text"
+                                name="operationalHours"
+                                value={formData.operationalHours}
+                                onChange={handleInputChange}
+                                placeholder="Senin - Minggu: 09:00 - 23:00"
+                                className="w-full bg-background border border-white/10 rounded-lg p-3 text-sm focus:border-primary focus:outline-none transition-colors"
                             />
                         </div>
                     </div>
@@ -300,7 +365,19 @@ export default function BuilderPage() {
                         const TemplateComponent = selectedTemplate?.component_name === 'PlayZoneTemplate'
                             ? PlayZoneTemplate
                             : StoryBrandTemplate;
-                        return <TemplateComponent {...formData} />;
+                        return <TemplateComponent
+                            {...formData}
+                            isBuilderMode={true}
+                            onConfigChange={(key, value) => {
+                                setFormData(prev => ({
+                                    ...prev,
+                                    customConfig: {
+                                        ...prev.customConfig,
+                                        [key]: value
+                                    }
+                                }))
+                            }}
+                        />;
                     })()}
                 </div>
             </div>

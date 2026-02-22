@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Save, Loader2, DollarSign, Gamepad2, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, DollarSign, Gamepad2, Plus, Trash2, AlertTriangle, Trophy } from 'lucide-react';
 
 interface RateConfig {
     hourly: number;
@@ -19,6 +19,10 @@ export default function SettingsPage() {
     // New Type State
     const [newType, setNewType] = useState('');
     const [showAddType, setShowAddType] = useState(false);
+
+    // Loyalty Settings State
+    const [loyaltyProgramActive, setLoyaltyProgramActive] = useState(false);
+    const [loyaltyTargetHours, setLoyaltyTargetHours] = useState(10);
 
     const supabase = createClient();
 
@@ -41,6 +45,19 @@ export default function SettingsPage() {
             // Parse existing rates or default
             const existingRates = page.rental_rates || {};
             const initialRates: Record<string, RateConfig> = {};
+
+            // Fetch tenant info for loyalty settings
+            const { data: tenant } = await supabase
+                .from('tenants')
+                .select('loyalty_program_active, loyalty_target_hours')
+                .eq('user_id', user.id)
+                .single();
+
+            if (tenant) {
+                setLoyaltyProgramActive(tenant.loyalty_program_active ?? false);
+                // Convert stored minutes back to hours for display
+                setLoyaltyTargetHours(tenant.loyalty_target_hours ? tenant.loyalty_target_hours / 60 : 10);
+            }
 
             // Migrate old number format to object if necessary, or just load
             Object.keys(existingRates).forEach(key => {
@@ -105,14 +122,33 @@ export default function SettingsPage() {
         setSaving(true);
         console.log('Saving rates:', rates);
 
-        const { error } = await supabase
+        const { error: pageError } = await supabase
             .from('pages')
             .update({ rental_rates: rates })
             .eq('id', pageId);
 
-        if (error) {
-            console.error('Save Error:', error);
-            alert(`Failed to update settings: ${error.message}`);
+        // Update Tenant Settings
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { error: tenantError } = await supabase
+                .from('tenants')
+                .update({
+                    loyalty_program_active: loyaltyProgramActive,
+                    loyalty_target_hours: loyaltyTargetHours * 60 // store as minutes
+                })
+                .eq('user_id', user.id);
+
+            if (tenantError) {
+                console.error('Tenant Save Error:', tenantError);
+                alert(`Failed to update loyalty settings: ${tenantError.message}`);
+                setSaving(false);
+                return;
+            }
+        }
+
+        if (pageError) {
+            console.error('Save Error:', pageError);
+            alert(`Failed to update settings: ${pageError.message}`);
         } else {
             alert('Settings saved successfully');
         }
@@ -255,6 +291,58 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Loyalty Settings */}
+                    <div className="pt-8 border-t border-white/10">
+                        <div className="mb-6">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Trophy className="w-5 h-5 text-yellow-400" />
+                                Loyalty Program
+                            </h2>
+                            <p className="text-sm text-gray-400">
+                                Configure automatic loyalty rewards for your players.
+                            </p>
+                        </div>
+
+                        <div className="space-y-6 bg-white/5 p-6 rounded-xl border border-white/5">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-white">Enable Loyalty Program</h3>
+                                    <p className="text-sm text-gray-400">Toggle automatic point calculation and rewards.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={loyaltyProgramActive}
+                                        onChange={(e) => setLoyaltyProgramActive(e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                </label>
+                            </div>
+
+                            {loyaltyProgramActive && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-4">
+                                    <label className="block text-sm font-bold text-white">Target Jam Bermain</label>
+                                    <p className="text-xs text-gray-400 mb-2">
+                                        Pemain akan mendapatkan voucher gratis 1 jam setelah bermain selama total jam yang ditentukan.
+                                        (Nilai poin dihitung 1000 per 1 jam).
+                                    </p>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            className="w-24 bg-background border border-white/10 rounded-lg py-2 px-4 text-center text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                                            value={loyaltyTargetHours}
+                                            onChange={(e) => setLoyaltyTargetHours(parseInt(e.target.value) || 10)}
+                                        />
+                                        <span className="text-gray-400">Jam = Target {(loyaltyTargetHours * 1000).toLocaleString()} Poin</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

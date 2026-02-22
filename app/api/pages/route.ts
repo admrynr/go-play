@@ -11,7 +11,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { businessName, whatsappNumber, address, logoText, logoUrl, themeColor, templateId, targetPageId } = body;
+        const { businessName, whatsappNumber, address, logoText, logoUrl, themeColor, templateId, targetPageId, instagramLink, tiktokLink, operationalHours, customConfig } = body;
 
         let targetPage = null;
         let targetTenant = null;
@@ -74,6 +74,10 @@ export async function POST(request: Request) {
                     logo_url: logoUrl || null,
                     theme_color: themeColor || '#003791',
                     template_id: templateId || targetPage.template_id,
+                    instagram_link: instagramLink || null,
+                    tiktok_link: tiktokLink || null,
+                    operational_hours: operationalHours || null,
+                    custom_config: customConfig || targetPage.custom_config,
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', targetPage.id)
@@ -107,6 +111,10 @@ export async function POST(request: Request) {
                 logo_url: logoUrl || null,
                 theme_color: themeColor || '#003791',
                 template_id: templateId || null,
+                instagram_link: instagramLink || null,
+                tiktok_link: tiktokLink || null,
+                operational_hours: operationalHours || null,
+                custom_config: customConfig || {},
             })
             .select()
             .single();
