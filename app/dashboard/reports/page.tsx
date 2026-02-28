@@ -190,6 +190,104 @@ export default function ReportsPage() {
                 </div>
             </div>
 
+            {/* Revenue Chart */}
+            {!loading && sessions.length > 0 && (() => {
+                const now = new Date();
+                const dailyData: { label: string; value: number }[] = [];
+                const daysToShow = filter === 'today' ? 1 : filter === 'week' ? 7 : 30;
+                const displayDays = Math.min(daysToShow, 14); // Max 14 bars for readability
+
+                for (let i = displayDays - 1; i >= 0; i--) {
+                    const date = new Date(now);
+                    date.setDate(date.getDate() - i);
+                    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+                    const rev = sessions
+                        .filter((s: any) => {
+                            const et = new Date(s.end_time);
+                            return et >= dayStart && et <= dayEnd;
+                        })
+                        .reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
+                    dailyData.push({
+                        label: date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }),
+                        value: rev,
+                    });
+                }
+
+                const maxRev = Math.max(...dailyData.map(d => d.value), 1);
+                const chartW = 600;
+                const chartH = 160;
+                const padding = 30;
+                const points = dailyData.map((d, i) => {
+                    const x = padding + (i / Math.max(dailyData.length - 1, 1)) * (chartW - padding * 2);
+                    const y = chartH - padding - ((d.value / maxRev) * (chartH - padding * 2));
+                    return `${x},${y}`;
+                });
+
+                return (
+                    <div className="bg-surface border border-white/10 rounded-2xl p-6 mb-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 className="text-lg font-bold flex items-center gap-2">
+                                    <TrendingUp className="w-5 h-5 text-primary" />
+                                    Revenue Trend
+                                </h2>
+                                <p className="text-xs text-gray-500">Pendapatan harian</p>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <svg viewBox={`0 0 ${chartW} ${chartH + 30}`} className="w-full min-w-[400px] h-auto">
+                                {/* Grid lines */}
+                                {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+                                    const y = chartH - padding - pct * (chartH - padding * 2);
+                                    return (
+                                        <g key={pct}>
+                                            <line x1={padding} y1={y} x2={chartW - padding} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                                            <text x={padding - 4} y={y + 4} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="8">
+                                                {formatCurrency(maxRev * pct).replace('Rp', '')}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                                {/* Area fill */}
+                                <polygon
+                                    points={`${padding},${chartH - padding} ${points.join(' ')} ${padding + ((dailyData.length - 1) / Math.max(dailyData.length - 1, 1)) * (chartW - padding * 2)},${chartH - padding}`}
+                                    fill="url(#chartGradient)"
+                                />
+                                <defs>
+                                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="rgba(0,55,145,0.3)" />
+                                        <stop offset="100%" stopColor="rgba(0,55,145,0)" />
+                                    </linearGradient>
+                                </defs>
+                                {/* Line */}
+                                <polyline
+                                    points={points.join(' ')}
+                                    fill="none"
+                                    stroke="#003791"
+                                    strokeWidth="2.5"
+                                    strokeLinejoin="round"
+                                    strokeLinecap="round"
+                                />
+                                {/* Dots + Labels */}
+                                {dailyData.map((d, i) => {
+                                    const x = padding + (i / Math.max(dailyData.length - 1, 1)) * (chartW - padding * 2);
+                                    const y = chartH - padding - ((d.value / maxRev) * (chartH - padding * 2));
+                                    return (
+                                        <g key={i}>
+                                            <circle cx={x} cy={y} r="3.5" fill="#003791" stroke="#0A0A0A" strokeWidth="2" />
+                                            <text x={x} y={chartH + 10} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8">
+                                                {d.label}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                            </svg>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Recent Transactions */}
             <div className="bg-surface border border-white/10 rounded-2xl p-6">
                 <div className="flex justify-between items-center mb-6">

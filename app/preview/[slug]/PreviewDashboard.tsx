@@ -1,0 +1,203 @@
+'use client';
+
+import { Monitor, Clock, DollarSign, ChefHat, ExternalLink, UtensilsCrossed, TrendingUp } from 'lucide-react';
+
+interface PreviewDashboardProps {
+    data: {
+        tenant: any;
+        page: any;
+        stations: any[];
+        sessions: any[];
+        orders: any[];
+        pendingRequests: number;
+    };
+    slug: string;
+}
+
+export default function PreviewDashboard({ data, slug }: PreviewDashboardProps) {
+    const { tenant, page, stations, sessions, orders, pendingRequests } = data;
+
+    const totalStations = stations.length;
+    const activeSessions = sessions.filter((s: any) => s.status === 'active').length;
+
+    // Revenue Today
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const revenueToday = sessions
+        .filter((s: any) => s.end_time && new Date(s.end_time) >= todayStart && s.status === 'completed')
+        .reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
+
+    // Chart data — last 7 days
+    const dailyRevenue: { label: string; value: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+        const rev = sessions
+            .filter((s: any) => {
+                const et = new Date(s.end_time);
+                return et >= dayStart && et <= dayEnd && s.status === 'completed';
+            })
+            .reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
+        dailyRevenue.push({
+            label: date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }),
+            value: rev,
+        });
+    }
+    const maxRevenue = Math.max(...dailyRevenue.map((d) => d.value), 1);
+
+    const formatCurrency = (amount: number) =>
+        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
+
+    // SVG chart rendering
+    const chartW = 600;
+    const chartH = 160;
+    const padding = 30;
+    const points = dailyRevenue.map((d, i) => {
+        const x = padding + (i / Math.max(dailyRevenue.length - 1, 1)) * (chartW - padding * 2);
+        const y = chartH - padding - ((d.value / maxRevenue) * (chartH - padding * 2));
+        return `${x},${y}`;
+    });
+
+    return (
+        <div>
+            {/* Header — same as dashboard/page.tsx */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-8">
+                <div>
+                    <h1 className="text-3xl font-heading font-bold mb-1">Overview</h1>
+                    <p className="text-gray-400">Welcome back, {page.business_name}</p>
+                </div>
+                <a
+                    href={`/${page.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-primary hover:text-white transition-colors bg-primary/10 px-4 py-2 rounded-lg"
+                >
+                    View Public Site <ExternalLink className="w-4 h-4" />
+                </a>
+            </div>
+
+            {/* Stat Cards — identical to dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="bg-surface border border-white/10 rounded-2xl p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                            <Monitor className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Total Stations</p>
+                            <p className="text-2xl font-bold">{totalStations}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface border border-white/10 rounded-2xl p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-green-500/20 rounded-xl text-green-400">
+                            <Clock className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Active Sessions</p>
+                            <p className="text-2xl font-bold">{activeSessions}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface border border-white/10 rounded-2xl p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-orange-500/20 rounded-xl text-orange-400">
+                            <ChefHat className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Kitchen Orders</p>
+                            <p className="text-2xl font-bold">{pendingRequests}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface border border-white/10 rounded-2xl p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
+                            <DollarSign className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-400">Today&apos;s Revenue</p>
+                            <p className="text-2xl font-bold">
+                                {formatCurrency(revenueToday)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Revenue Chart */}
+            <div className="bg-surface border border-white/10 rounded-2xl p-6 mb-8">
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Revenue Trend (7 Hari Terakhir)
+                </h2>
+                <p className="text-xs text-gray-500 mb-6">Pendapatan harian dari sesi bermain</p>
+                <div className="overflow-x-auto">
+                    <svg viewBox={`0 0 ${chartW} ${chartH + 30}`} className="w-full min-w-[400px] h-auto">
+                        {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+                            const y = chartH - padding - pct * (chartH - padding * 2);
+                            return (
+                                <g key={pct}>
+                                    <line x1={padding} y1={y} x2={chartW - padding} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                                    <text x={padding - 4} y={y + 4} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="8">
+                                        {formatCurrency(maxRevenue * pct).replace('Rp', '')}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                        <polygon
+                            points={`${padding},${chartH - padding} ${points.join(' ')} ${padding + ((dailyRevenue.length - 1) / Math.max(dailyRevenue.length - 1, 1)) * (chartW - padding * 2)},${chartH - padding}`}
+                            fill="url(#previewChartGradient)"
+                        />
+                        <defs>
+                            <linearGradient id="previewChartGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="rgba(0,55,145,0.3)" />
+                                <stop offset="100%" stopColor="rgba(0,55,145,0)" />
+                            </linearGradient>
+                        </defs>
+                        <polyline
+                            points={points.join(' ')}
+                            fill="none"
+                            stroke="#003791"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+                        {dailyRevenue.map((d, i) => {
+                            const x = padding + (i / Math.max(dailyRevenue.length - 1, 1)) * (chartW - padding * 2);
+                            const y = chartH - padding - ((d.value / maxRevenue) * (chartH - padding * 2));
+                            return (
+                                <g key={i}>
+                                    <circle cx={x} cy={y} r="3.5" fill="#003791" stroke="#0A0A0A" strokeWidth="2" />
+                                    <text x={x} y={chartH + 10} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8">
+                                        {d.label}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                    </svg>
+                </div>
+            </div>
+
+            {/* Quick Actions — same as dashboard but read-only */}
+            <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-surface border border-white/10 rounded-xl opacity-50 cursor-not-allowed flex flex-col items-center text-center gap-2">
+                    <Monitor className="w-8 h-8 text-primary" />
+                    <span className="font-medium">Manage Stations</span>
+                </div>
+                <div className="p-4 bg-surface border border-white/10 rounded-xl opacity-50 cursor-not-allowed flex flex-col items-center text-center gap-2">
+                    <UtensilsCrossed className="w-8 h-8 text-orange-400" />
+                    <span className="font-medium">Update Menu</span>
+                </div>
+            </div>
+        </div>
+    );
+}

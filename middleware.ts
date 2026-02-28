@@ -33,7 +33,11 @@ export async function middleware(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     // Public routes that don't need protection
-    if (request.nextUrl.pathname === '/' || request.nextUrl.pathname.startsWith('/api/')) {
+    if (
+        request.nextUrl.pathname === '/' ||
+        request.nextUrl.pathname.startsWith('/api/') ||
+        request.nextUrl.pathname.startsWith('/preview')
+    ) {
         return supabaseResponse
     }
 
