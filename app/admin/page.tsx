@@ -117,13 +117,6 @@ export default function AdminDashboard() {
                 {/* Quick Action */}
                 <div className="mt-8 flex gap-4">
                     <Link
-                        href="/admin/tenants/create"
-                        className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-8 rounded-xl transition-all hover:glow-box"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Create New Tenant
-                    </Link>
-                    <Link
                         href="/admin/onboarding"
                         className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-xl transition-all"
                     >

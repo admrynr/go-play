@@ -161,12 +161,12 @@ export default function StoryBrandTemplate({
                             className="lg:w-1/2 text-center lg:text-left"
                         >
                             <div className="inline-block px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-widest uppercase mb-6">
-                                Next Gen Rental Experience
+                                Premium Gaming Experience
                             </div>
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-6 leading-tight uppercase text-white">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroLine1 || 'Main PS'}
+                                    value={customConfig?.heroLine1 || 'Mabar Seru'}
                                     onSave={(v) => onConfigChange?.('heroLine1', v)}
                                     isBuilderMode={isBuilderMode}
                                 />
@@ -174,14 +174,14 @@ export default function StoryBrandTemplate({
                                 <span className="text-primary glow-text">
                                     <EditableText
                                         element="span"
-                                        value={customConfig?.heroLine2 || 'Tanpa Ribet,'}
+                                        value={customConfig?.heroLine2 || 'Tanpa Antre'}
                                         onSave={(v) => onConfigChange?.('heroLine2', v)}
                                         isBuilderMode={isBuilderMode}
                                     />
                                 </span><br />
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroLine3 || 'Bonus Melimpah.'}
+                                    value={customConfig?.heroLine3 || `di ${businessName}.`}
                                     onSave={(v) => onConfigChange?.('heroLine3', v)}
                                     isBuilderMode={isBuilderMode}
                                 />
@@ -189,7 +189,7 @@ export default function StoryBrandTemplate({
                             <p className="text-gray-400 text-base md:text-lg mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroDesc || 'Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.'}
+                                    value={customConfig?.heroDesc || 'Bosan main sendiri dengan perangkat seadanya? Nikmati pengalaman PS5 terbaik dengan layar besar dan kursi ergonomis. Cek ketersediaan slot secara live dan pesan camilan langsung dari smartphone Anda.'}
                                     onSave={(v) => onConfigChange?.('heroDesc', v)}
                                     isBuilderMode={isBuilderMode}
                                     className="block"
@@ -256,7 +256,7 @@ export default function StoryBrandTemplate({
             <section id="problem" className="py-20 bg-surface relative">
                 <div className="container mx-auto px-4">
                     <div className="text-center mb-16">
-                        <h2 className="text-2xl md:text-3xl font-heading font-bold text-white mb-4">PERNAH MENGALAMI INI?</h2>
+                        <h2 className="text-2xl md:text-3xl font-heading font-bold text-white mb-4">Pernah Kecewa Karena Rental Penuh atau Fasilitas Kurang Oke?</h2>
                         <div className="w-20 h-1 bg-primary mx-auto rounded-full" />
                     </div>
 
@@ -264,18 +264,18 @@ export default function StoryBrandTemplate({
                         {[
                             {
                                 icon: AlertCircle,
-                                title: "Bosan di Rumah?",
-                                desc: "Harga console mahal, game kaset jutaan, mau main tapi spek PC kentang?"
+                                title: "Sudah Jauh, Tempat Penuh",
+                                desc: "Tidak ada cara untuk tahu ketersediaan slot sebelum berangkat — buang waktu dan ongkos."
                             },
                             {
                                 icon: Timer,
-                                title: "Billing Tidak Jelas?",
-                                desc: "Sering merasa dicurangi waktu di rental lain? Atau ribet harus catat jam manual?"
+                                title: "Setup & Layar Kurang Oke",
+                                desc: "Main di layar kecil dengan grafis patah-patah karena hardware yang tidak dirawat dengan baik."
                             },
                             {
                                 icon: Coffee,
-                                title: "Repot Pesan Minum?",
-                                desc: "Lagi asik war tapi haus? Harus pause game dan jalan ke kasir cuma buat beli air?"
+                                title: "Harus Berdiri Cuma Buat Pesan",
+                                desc: "Lagi seru-serunya main, harus pause dan berjalan ke kasir hanya untuk memesan air minum."
                             }
                         ].map((item, i) => (
                             <motion.div
@@ -302,8 +302,8 @@ export default function StoryBrandTemplate({
                 <div className="container mx-auto px-4">
                     <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-4">
                         <div>
-                            <span className="text-primary font-bold tracking-widest text-sm uppercase">SOLUSI KAMI</span>
-                            <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mt-2">KENAPA HARUS DI SINI?</h2>
+                            <span className="text-primary font-bold tracking-widest text-sm uppercase">KEUNGGULAN KAMI</span>
+                            <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mt-2">Kenapa Main di Sini Lebih Oke?</h2>
                         </div>
                     </div>
 
@@ -311,11 +311,11 @@ export default function StoryBrandTemplate({
                         {/* Feature 1 */}
                         <div className="bg-surface p-8 rounded-3xl border border-white/5 flex gap-6 items-start hover:bg-white/5 transition-colors">
                             <div className="p-4 bg-primary/20 rounded-2xl text-primary shrink-0">
-                                <Timer className="w-8 h-8" />
+                                <Tv className="w-8 h-8" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Timer Digital Real-Time</h3>
-                                <p className="text-gray-400">Pantau sisa waktu mainmu langsung lewat HP. Tidak ada lagi drama waktu tiba-tiba habis dipotong operator.</p>
+                                <h3 className="text-2xl font-bold text-white mb-2">Status Board Real-time</h3>
+                                <p className="text-gray-400">Cek mana konsol yang kosong (Idle/Active) secara live dari HP sebelum Anda berangkat — tidak perlu telepon dulu.</p>
                             </div>
                         </div>
 
@@ -325,8 +325,8 @@ export default function StoryBrandTemplate({
                                 <Coffee className="w-8 h-8" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Kantin Digital</h3>
-                                <p className="text-gray-400">Lapar pas lagi push rank? Scan QR di meja, pesan snack, dan kami antar tanpa mengganggu permainanmu.</p>
+                                <h3 className="text-2xl font-bold text-white mb-2">Digital Ordering</h3>
+                                <p className="text-gray-400">Pesan makanan dan minuman favorit langsung dari HP Anda — tanpa harus menghentikan sesi bermain.</p>
                             </div>
                         </div>
 
@@ -336,19 +336,19 @@ export default function StoryBrandTemplate({
                                 <Trophy className="w-8 h-8" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Loyalty Program 10:1</h3>
-                                <p className="text-gray-400">Setiap main 10 jam (akumulatif), otomatis dapat voucher 1 jam gratis. Makin sering main, makin untung!</p>
+                                <h3 className="text-2xl font-bold text-white mb-2">Loyalty Rewards</h3>
+                                <p className="text-gray-400">Main lebih hemat dengan akumulasi jam otomatis. Dapatkan 1 jam gratis untuk setiap {loyaltyTargetHours} jam bermain!</p>
                             </div>
                         </div>
 
                         {/* Feature 4 */}
                         <div className="bg-surface p-8 rounded-3xl border border-white/5 flex gap-6 items-start hover:bg-white/5 transition-colors">
                             <div className="p-4 bg-primary/20 rounded-2xl text-primary shrink-0">
-                                <Box className="w-8 h-8" />
+                                <Timer className="w-8 h-8" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Sewa PS Box Harian</h3>
-                                <p className="text-gray-400">Ingin seru-seruan di rumah? Sewa unit PS Box harian dengan syarat mudah dan game terupdate.</p>
+                                <h3 className="text-2xl font-bold text-white mb-2">Timer Live di HP Anda</h3>
+                                <p className="text-gray-400">Scan QR di stasiun — pantau sisa waktu dan total tagihan secara live langsung dari browser HP Anda.</p>
                             </div>
                         </div>
                     </div>
@@ -359,8 +359,8 @@ export default function StoryBrandTemplate({
             <section id="plan" className="py-20 bg-surface relative border-y border-white/5">
                 <div className="container mx-auto px-4">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">CARA MAIN</h2>
-                        <p className="text-gray-400">3 Langkah mudah untuk mulai gaming experience-mu.</p>
+                        <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">CARA MULAI</h2>
+                        <p className="text-gray-400">3 Langkah mudah untuk menikmati gaming experience terbaik di sini.</p>
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-8 relative">
@@ -370,18 +370,18 @@ export default function StoryBrandTemplate({
                         {[
                             {
                                 step: "01",
-                                title: "Datang & Scan",
-                                desc: "Pilih mejamu, duduk nyaman, dan scan QR Code yang tersedia untuk mulai sesi."
+                                title: "Cek Ketersediaan",
+                                desc: "Lihat stasiun mana yang kosong di halaman ini secara real-time sebelum berangkat."
                             },
                             {
                                 step: "02",
-                                title: "Main & Pesan",
-                                desc: "Nikmati game PS5/PS4 favoritmu. Haus? Pesan lewat HP langsung diantar."
+                                title: "Pesan via WhatsApp",
+                                desc: "Klik tombol booking untuk mengamankan tempat Anda — pesan sudah terisi otomatis."
                             },
                             {
                                 step: "03",
-                                title: "Klaim Bonus",
-                                desc: "Selesai main, jam mainmu otomatis tercatat. Kumpulkan untuk dapat gratisan!"
+                                title: "Scan & Play",
+                                desc: "Datang ke lokasi, scan QR di stasiun Anda, dan nikmati semua fitur digital Go-Play."
                             }
                         ].map((item, i) => (
                             <div key={i} className="flex flex-col items-center text-center relative z-10">
@@ -405,16 +405,16 @@ export default function StoryBrandTemplate({
 
                         <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-6">
                             <CheckCircle className="w-12 h-12 text-primary" />
-                            <h2 className="text-2xl md:text-3xl font-heading font-bold text-white">Sistem & Manajemen Transparan</h2>
+                            <h2 className="text-2xl md:text-3xl font-heading font-bold text-white">Tempat yang Nyaman & Transparan</h2>
                         </div>
                         <p className="text-gray-400 text-lg leading-relaxed mb-8">
-                            "Sistem kami mencatat setiap sesi secara akurat. Rekap keuangan transparan memastikan pelayanan tetap prima dan profesional,
-                            menghilangkan kecurangan dan memastikan kenyamanan Anda adalah prioritas nomor satu."
+                            Kami tahu Anda butuh tempat mabar yang nyaman tanpa gangguan teknis atau admin yang ribet.
+                            Di {businessName}, setiap sesi tercatat dengan akurat — timer real-time, tagihan transparan, dan fasilitas yang selalu siap.
                         </p>
                         <div className="flex justify-center gap-8 text-sm font-bold tracking-wider text-gray-500 uppercase">
-                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> Anti-Curang</span>
-                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> Real Data</span>
-                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> Auto-Report</span>
+                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> WiFi Kencang</span>
+                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> AC Dingin</span>
+                            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full" /> Billing Jujur</span>
                         </div>
                     </div>
                 </div>
@@ -445,7 +445,7 @@ export default function StoryBrandTemplate({
                             <p className="text-gray-400 mb-6 font-medium">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.footerDesc || 'Memberikan pengalaman gaming terbaik dengan sistem modern, transparan, dan nyaman. Experience gaming yang sebenarnya ada di sini.'}
+                                    value={customConfig?.footerDesc || `Di ${businessName}, kami percaya setiap gamer layak mendapatkan pengalaman bermain terbaik — tempat yang nyaman, billing transparan, dan lebih hemat dengan loyalty program kami.`}
                                     onSave={(v) => onConfigChange?.('footerDesc', v)}
                                     isBuilderMode={isBuilderMode}
                                     className="block"

@@ -36,7 +36,8 @@ export async function middleware(request: NextRequest) {
     if (
         request.nextUrl.pathname === '/' ||
         request.nextUrl.pathname.startsWith('/api/') ||
-        request.nextUrl.pathname.startsWith('/preview')
+        request.nextUrl.pathname.startsWith('/preview') ||
+        request.nextUrl.pathname.startsWith('/preview-template')
     ) {
         return supabaseResponse
     }

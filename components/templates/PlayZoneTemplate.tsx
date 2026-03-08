@@ -235,7 +235,7 @@ export default function PlayZoneTemplate({
                                 <Sparkles className="w-4 h-4" style={{ color: themeColor }} />
                                 <span className="text-sm font-bold uppercase tracking-widest theme-text">
                                     <EditableText
-                                        value={customConfig?.heroBadge || 'Next Gen Gaming'}
+                                        value={customConfig?.heroBadge || 'Premium Gaming Spot'}
                                         onSave={(v) => onConfigChange?.('heroBadge', v)}
                                         isBuilderMode={isBuilderMode}
                                     />
@@ -245,7 +245,7 @@ export default function PlayZoneTemplate({
                             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-6 leading-[0.9] uppercase">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroLine1 || 'Main PS'}
+                                    value={customConfig?.heroLine1 || 'Mabar Seru'}
                                     onSave={(v) => onConfigChange?.('heroLine1', v)}
                                     isBuilderMode={isBuilderMode}
                                 />
@@ -253,7 +253,7 @@ export default function PlayZoneTemplate({
                                 <span className="theme-gradient-text glow-text inline-block">
                                     <EditableText
                                         element="span"
-                                        value={customConfig?.heroLine2 || 'Tanpa Ribet'}
+                                        value={customConfig?.heroLine2 || 'Tanpa Antre'}
                                         onSave={(v) => onConfigChange?.('heroLine2', v)}
                                         isBuilderMode={isBuilderMode}
                                     />
@@ -261,7 +261,7 @@ export default function PlayZoneTemplate({
                                 <br />
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroLine3 || 'Bonus Melimpah'}
+                                    value={customConfig?.heroLine3 || `di ${businessName}!`}
                                     onSave={(v) => onConfigChange?.('heroLine3', v)}
                                     isBuilderMode={isBuilderMode}
                                 />
@@ -270,7 +270,7 @@ export default function PlayZoneTemplate({
                             <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.heroDesc || 'Rental PS dengan sistem billing transparan, pemesanan snack dari meja, dan program loyalitas otomatis.'}
+                                    value={customConfig?.heroDesc || 'Bosan main sendiri dengan perangkat seadanya? Nikmati PS5 terbaik dengan layar besar. Cek slot secara live dan pesan camilan langsung dari smartphone Anda.'}
                                     onSave={(v) => onConfigChange?.('heroDesc', v)}
                                     isBuilderMode={isBuilderMode}
                                     className="block"
@@ -366,7 +366,7 @@ export default function PlayZoneTemplate({
                 <div className="container mx-auto px-4">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-black mb-4 uppercase">
-                            PERNAH MENGALAMI INI?
+                            Pernah Kecewa Sama Rental Lain?
                         </h2>
                         <div className="w-24 h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 mx-auto rounded-full"></div>
                     </div>
@@ -375,20 +375,20 @@ export default function PlayZoneTemplate({
                         {[
                             {
                                 icon: AlertCircle,
-                                title: "Bosan di Rumah?",
-                                desc: "Harga console mahal, game kaset jutaan, mau main tapi spek PC kentang?",
+                                title: "Sudah Jauh, Penuh Semua",
+                                desc: "Tidak ada cara tahu ketersediaan slot sebelum berangkat — buang waktu dan ongkos perjalanan.",
                                 gradient: "from-red-500 to-orange-500"
                             },
                             {
                                 icon: Timer,
-                                title: "Billing Tidak Jelas?",
-                                desc: "Sering merasa dicurangi waktu di rental lain? Atau ribet harus catat jam manual?",
+                                title: "Setup Kurang Memuaskan",
+                                desc: "Main di layar kecil dengan grafis patah-patah karena hardware yang tidak dirawat dengan baik.",
                                 gradient: "from-purple-500 to-pink-500"
                             },
                             {
                                 icon: Coffee,
-                                title: "Repot Pesan Minum?",
-                                desc: "Lagi asik war tapi haus? Harus pause game dan jalan ke kasir cuma buat beli air?",
+                                title: "Harus Berdiri Cuma Buat Pesan",
+                                desc: "Lagi seru-serunya main, harus pause dan jalan ke kasir hanya untuk memesan minuman.",
                                 gradient: "from-blue-500 to-cyan-500"
                             }
                         ].map((item, i) => (
@@ -417,36 +417,36 @@ export default function PlayZoneTemplate({
 
                 <div className="container mx-auto px-4 relative z-10">
                     <div className="mb-16">
-                        <span className="text-purple-400 font-bold tracking-widest text-sm uppercase">SOLUSI KAMI</span>
+                        <span className="text-purple-400 font-bold tracking-widest text-sm uppercase">KEUNGGULAN KAMI</span>
                         <h2 className="text-4xl md:text-6xl font-black mt-2 uppercase">
-                            KENAPA HARUS <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">DI SINI?</span>
+                            KENAPA MAIN <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">DI SINI?</span>
                         </h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {[
                             {
-                                icon: Timer,
-                                title: "Timer Digital Real-Time",
-                                desc: "Pantau sisa waktu mainmu langsung lewat HP. Tidak ada lagi drama waktu tiba-tiba habis dipotong operator.",
+                                icon: Tv,
+                                title: "Status Board Real-time",
+                                desc: `Cek mana konsol yang kosong secara live dari HP sebelum berangkat — tidak perlu telepon dulu.`,
                                 color: "purple"
                             },
                             {
                                 icon: Coffee,
-                                title: "Kantin Digital",
-                                desc: "Lapar pas lagi push rank? Scan QR di meja, pesan snack, dan kami antar tanpa mengganggu permainanmu.",
+                                title: "Digital Ordering",
+                                desc: "Pesan makanan dan minuman dari HP Anda — langsung diantar tanpa ganggu sesi bermain.",
                                 color: "pink"
                             },
                             {
                                 icon: Trophy,
-                                title: `Loyalty Program ${loyaltyTargetHours}:1`,
-                                desc: `Setiap main ${loyaltyTargetHours} jam (akumulatif), otomatis dapat voucher 1 jam gratis. Makin sering main, makin untung!`,
+                                title: `Loyalty Rewards ${loyaltyTargetHours}:1`,
+                                desc: `Akumulasi jam otomatis per nomor WA. Dapatkan 1 jam gratis setiap ${loyaltyTargetHours} jam bermain!`,
                                 color: "blue"
                             },
                             {
-                                icon: Box,
-                                title: "Sewa PS Box Harian",
-                                desc: "Ingin seru-seruan di rumah? Sewa unit PS Box harian dengan syarat mudah dan game terupdate.",
+                                icon: Timer,
+                                title: "Timer Live di HP Anda",
+                                desc: "Scan QR di stasiun — pantau sisa waktu dan total tagihan live langsung dari browser HP.",
                                 color: "cyan"
                             }
                         ].map((feature, i) => (
@@ -475,8 +475,8 @@ export default function PlayZoneTemplate({
             <section id="plan" className="py-20 relative">
                 <div className="container mx-auto px-4">
                     <div className="text-center mb-16">
-                        <h2 className="text-4xl md:text-6xl font-black mb-4 uppercase">CARA MAIN</h2>
-                        <p className="text-gray-400 text-lg">3 Langkah mudah untuk mulai gaming experience-mu</p>
+                        <h2 className="text-4xl md:text-6xl font-black mb-4 uppercase">CARA MULAI</h2>
+                        <p className="text-gray-400 text-lg">3 Langkah mudah menikmati gaming experience terbaikmu</p>
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-8 relative">
@@ -486,20 +486,20 @@ export default function PlayZoneTemplate({
                         {[
                             {
                                 step: "01",
-                                title: "Datang & Scan",
-                                desc: "Pilih mejamu, duduk nyaman, dan scan QR Code yang tersedia untuk mulai sesi.",
+                                title: "Cek Ketersediaan",
+                                desc: "Lihat stasiun mana yang kosong di halaman ini secara live sebelum berangkat.",
                                 gradient: "from-purple-600 to-purple-700"
                             },
                             {
                                 step: "02",
-                                title: "Main & Pesan",
-                                desc: "Nikmati game PS5/PS4 favoritmu. Haus? Pesan lewat HP langsung diantar.",
+                                title: "Pesan via WhatsApp",
+                                desc: "Klik tombol booking untuk amankan tempat — pesan sudah terisi otomatis.",
                                 gradient: "from-pink-600 to-pink-700"
                             },
                             {
                                 step: "03",
-                                title: "Klaim Bonus",
-                                desc: "Selesai main, jam mainmu otomatis tercatat. Kumpulkan untuk dapat gratisan!",
+                                title: "Scan & Play",
+                                desc: "Datang, scan QR di stasiun Anda, dan nikmati semua fitur digital Go-Play!",
                                 gradient: "from-blue-600 to-blue-700"
                             }
                         ].map((item, i) => (
@@ -526,16 +526,17 @@ export default function PlayZoneTemplate({
 
                         <div className="flex items-center justify-center gap-4 mb-6">
                             <CheckCircle className="w-12 h-12 text-green-400" />
-                            <h2 className="text-3xl md:text-4xl font-black">Sistem & Manajemen Transparan</h2>
+                            <h2 className="text-3xl md:text-4xl font-black">Nyaman, Transparan & Seru!</h2>
                         </div>
 
                         <p className="text-gray-300 text-lg leading-relaxed mb-8 max-w-3xl mx-auto">
-                            Sistem kami mencatat setiap sesi secara akurat. Rekap keuangan transparan memastikan pelayanan tetap prima dan profesional,
-                            menghilangkan kecurangan dan memastikan kenyamanan Anda adalah prioritas nomor satu.
+                            Kami tahu Anda butuh tempat mabar yang nyaman tanpa gangguan teknis. Di {businessName},
+                            setiap sesi tercatat akurat — timer real-time, billing transparan, dan fasilitas terbaik
+                            untuk memastikan kenyamanan bermain Anda adalah prioritas kami.
                         </p>
 
                         <div className="flex flex-wrap justify-center gap-6 text-sm font-bold uppercase tracking-wider">
-                            {["Anti-Curang", "Real Data", "Auto-Report"].map((badge, i) => (
+                            {["WiFi Kencang", "AC Dingin", "Billing Jujur"].map((badge, i) => (
                                 <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-green-600/20 to-emerald-600/20 border border-green-500/30">
                                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                                     {badge}
@@ -569,7 +570,7 @@ export default function PlayZoneTemplate({
                             <p className="text-gray-400 max-w-sm leading-relaxed mb-6">
                                 <EditableText
                                     element="span"
-                                    value={customConfig?.footerDesc || 'Rental PS Modern dengan fasilitas terlengkap dan sistem digital pertama di kota ini. Experience gaming yang sebenarnya ada di sini.'}
+                                    value={customConfig?.footerDesc || `Di ${businessName}, kami percaya setiap gamer layak mendapatkan pengalaman bermain terbaik — tempat yang nyaman, billing transparan, dan lebih hemat dengan loyalty program kami.`}
                                     onSave={(v) => onConfigChange?.('footerDesc', v)}
                                     isBuilderMode={isBuilderMode}
                                     className="block"
