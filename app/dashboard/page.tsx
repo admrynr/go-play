@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Monitor, Clock, DollarSign, ChefHat, Plus, ExternalLink, UtensilsCrossed, Rocket, CheckSquare, BarChart3, TrendingUp } from 'lucide-react';
+import { Monitor, Clock, DollarSign, ChefHat, Plus, ExternalLink, UtensilsCrossed, Rocket, CheckSquare, BarChart3, TrendingUp, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -325,6 +325,13 @@ export default function DashboardPage() {
                 >
                     <BarChart3 className="w-8 h-8 text-green-400" />
                     <span className="font-medium">Reports</span>
+                </Link>
+                <Link
+                    href="/dashboard/bookings"
+                    className="p-4 bg-surface border border-yellow-500/20 rounded-xl hover:bg-yellow-500/10 transition-colors flex flex-col items-center text-center gap-2"
+                >
+                    <Ticket className="w-8 h-8 text-yellow-400" />
+                    <span className="font-medium">Kelola Booking</span>
                 </Link>
             </div>
         </div>

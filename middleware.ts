@@ -42,6 +42,12 @@ export async function middleware(request: NextRequest) {
         return supabaseResponse
     }
 
+    // Allow public slug pages (/[slug] and /[slug]/booking)
+    const pathParts = request.nextUrl.pathname.split('/').filter(Boolean);
+    if (pathParts.length >= 1 && !['admin', 'dashboard', 'login', 'builder', 'api'].includes(pathParts[0])) {
+        return supabaseResponse
+    }
+
     const role = user?.user_metadata?.role as number | undefined
 
     // Protect /builder route

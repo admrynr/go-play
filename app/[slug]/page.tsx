@@ -55,6 +55,7 @@ export default async function DynamicPage({ params }: PageProps) {
             tiktokLink={pageData.tiktok_link}
             operationalHours={pageData.operational_hours}
             customConfig={pageData.custom_config}
+            slug={slug}
         />
     );
 }

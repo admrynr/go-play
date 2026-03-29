@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" width="340" height="80" fill="none">
+  <!-- Nintendo-style pill outline -->
+  <rect x="3" y="3" width="334" height="74" rx="37" ry="37"
+    stroke="#003791" stroke-width="6" fill="none"/>
+  <text
+    x="50%"
+    y="53"
+    text-anchor="middle"
+    font-family="'Montserrat', 'Inter', Arial, sans-serif"
+    font-size="38"
+    font-weight="800"
+    fill="#ffffff"
+    letter-spacing="-0.5"
+  >TimeStation</text>
+</svg>

@@ -21,6 +21,7 @@ interface PlayZoneTemplateProps {
     isBuilderMode?: boolean;
     customConfig?: any;
     onConfigChange?: (key: string, value: string) => void;
+    slug?: string;
 }
 
 import EditableText from '../EditableText';
@@ -40,6 +41,7 @@ export default function PlayZoneTemplate({
     isBuilderMode = false,
     customConfig = {},
     onConfigChange,
+    slug,
 }: PlayZoneTemplateProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -286,22 +288,35 @@ export default function PlayZoneTemplate({
                             </p>
 
                             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                                <button
-                                    onClick={() => openWhatsApp("Saya mau booking meja sekarang")}
-                                    className="relative px-8 py-4 font-bold text-white rounded-xl overflow-hidden group"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600"></div>
-                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                                    <span className="relative z-10 flex items-center gap-2">
-                                        Booking Meja <ChevronRight className="w-5 h-5" />
-                                    </span>
-                                </button>
+                                {slug ? (
+                                    <Link
+                                        href={`/${slug}/booking`}
+                                        className="relative px-8 py-4 font-bold text-white rounded-xl overflow-hidden group"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600"></div>
+                                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                                        <span className="relative z-10 flex items-center gap-2">
+                                            Cek Slot &amp; Booking <ChevronRight className="w-5 h-5" />
+                                        </span>
+                                    </Link>
+                                ) : (
+                                    <button
+                                        onClick={() => openWhatsApp("Saya mau booking meja sekarang")}
+                                        className="relative px-8 py-4 font-bold text-white rounded-xl overflow-hidden group"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600"></div>
+                                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                                        <span className="relative z-10 flex items-center gap-2">
+                                            Booking via WhatsApp <ChevronRight className="w-5 h-5" />
+                                        </span>
+                                    </button>
+                                )}
 
                                 <button
-                                    onClick={() => openWhatsApp("Info Stok PS Box")}
+                                    onClick={() => openWhatsApp("Saya ingin tanya info lebih lanjut")}
                                     className="px-8 py-4 font-bold text-white rounded-xl border-2 border-purple-500/50 hover:bg-purple-500/10 transition-all flex items-center justify-center gap-2"
                                 >
-                                    <Box className="w-5 h-5" /> Cek Stok PS Box
+                                    <MessageCircle className="w-5 h-5" /> Hubungi via WhatsApp
                                 </button>
                             </div>
                         </motion.div>

@@ -17,8 +17,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "PS-BOX | Portable PlayStation Rental",
-  description: "Gaming Tanpa Batas, Di Mana Saja. Sewa Box PS Portable All-in-One.",
+  title: "TimeStation | Super Billing Apps",
+  description: "Semua yang Anda Butuhkan Untuk Mengelola Bisnis Rental PS",
 };
 
 export default function RootLayout({

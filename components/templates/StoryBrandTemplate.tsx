@@ -21,6 +21,7 @@ interface StoryBrandTemplateProps {
     isBuilderMode?: boolean;
     customConfig?: any;
     onConfigChange?: (key: string, value: string) => void;
+    slug?: string; // tenant page slug for booking link
 }
 
 import EditableText from '../EditableText';
@@ -40,6 +41,7 @@ export default function StoryBrandTemplate({
     isBuilderMode = false,
     customConfig = {},
     onConfigChange,
+    slug,
 }: StoryBrandTemplateProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -204,17 +206,26 @@ export default function StoryBrandTemplate({
                                 </span>
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                                {slug ? (
+                                    <Link
+                                        href={`/${slug}/booking`}
+                                        className="bg-primary text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-transform hover:glow-box shadow-lg shadow-primary/25"
+                                    >
+                                        Cek Slot & Booking <ChevronRight className="w-5 h-5" />
+                                    </Link>
+                                ) : (
+                                    <button
+                                        onClick={() => openWhatsApp("Saya mau booking meja sekarang")}
+                                        className="bg-primary text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-transform hover:glow-box shadow-lg shadow-primary/25"
+                                    >
+                                        Booking via WhatsApp <ChevronRight className="w-5 h-5" />
+                                    </button>
+                                )}
                                 <button
-                                    onClick={() => openWhatsApp("Saya mau booking meja sekarang")}
-                                    className="bg-primary text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-transform hover:glow-box shadow-lg shadow-primary/25"
-                                >
-                                    Booking Meja Sekarang <ChevronRight className="w-5 h-5" />
-                                </button>
-                                <button
-                                    onClick={() => openWhatsApp("Info Stok PS Box")}
+                                    onClick={() => openWhatsApp("Saya ingin tanya info lebih lanjut")}
                                     className="glass-panel hover:bg-white/5 text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 transition-colors border-white/10 hover:border-primary/50"
                                 >
-                                    <Box className="w-5 h-5" /> Cek Stok PS Box
+                                    <MessageCircle className="w-5 h-5" /> Hubungi via WhatsApp
                                 </button>
                             </div>
                         </motion.div>
