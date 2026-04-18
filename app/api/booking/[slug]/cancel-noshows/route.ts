@@ -55,5 +55,5 @@ export async function POST(
         .from('wa_blacklist')
         .upsert(blacklistRows, { onConflict: 'page_id,wa_number', ignoreDuplicates: true });
 
-    return NextResponse.json({ cancelled: ids.length, blacklisted: waNumbers.length });
+    return NextResponse.json({ cancelled: ids.length, blacklisted: waNumbers.length, wa_numbers: waNumbers });
 }

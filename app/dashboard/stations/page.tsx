@@ -17,6 +17,8 @@ export default function StationsPage() {
     const [activeSessions, setActiveSessions] = useState<Record<string, any>>({});
     const [stationRequests, setStationRequests] = useState<Record<string, any[]>>({}); // Station ID -> Requests
     const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({}); // Station ID -> Orders
+    const [pendingBookings, setPendingBookings] = useState<Record<string, any[]>>({}); // Station ID -> Booking requests
+    const [confirmedBookings, setConfirmedBookings] = useState<Record<string, any>>({}); // Station ID -> Next confirmed booking
     const [loading, setLoading] = useState(true);
     const [rates, setRates] = useState<Record<string, RateConfig>>({});
 
@@ -25,6 +27,7 @@ export default function StationsPage() {
     const [showStartModal, setShowStartModal] = useState<string | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null); // Station ID
     const [showQRModal, setShowQRModal] = useState<any | null>(null);
+    const [showActivateModal, setShowActivateModal] = useState<any | null>(null); // booking obj
 
     // Page Info
     const [pageId, setPageId] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export default function StationsPage() {
     // Loyalty State
     const [loyaltyStep, setLoyaltyStep] = useState<'payment' | 'input' | 'result'>('payment');
     const [waNumber, setWaNumber] = useState('');
+    const [activateWa, setActivateWa] = useState(''); // WA for booking activation
     const [loyaltyData, setLoyaltyData] = useState<any>(null);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
 
@@ -62,6 +66,41 @@ export default function StationsPage() {
         // Set default station type once rates are loaded
     }, []);
 
+    // Auto no-show check every 60s
+    useEffect(() => {
+        if (!pageSlug) return;
+        const checkNoShows = async () => {
+            try {
+                const res = await fetch(`/api/booking/${pageSlug}/cancel-noshows`, { method: 'POST' });
+                const data = await res.json();
+                if ((data.cancelled || 0) > 0) {
+                    // Show a toast with unblock option for each cancelled no-show WA
+                    data.wa_numbers?.forEach((wa: string) => {
+                        toast.error(`No-Show: WA ${wa} diblokir otomatis`, {
+                            duration: 15000,
+                            action: {
+                                label: 'Buka Blokir',
+                                onClick: async () => {
+                                    await supabase.from('wa_blacklist').delete()
+                                        .eq('wa_number', wa)
+                                        .eq('page_id', pageId);
+                                    toast.success(`WA ${wa} berhasil dibuka blokirnya.`);
+                                },
+                            },
+                        });
+                    });
+                    if (!data.wa_numbers) {
+                        toast.error(`${data.cancelled} booking batal otomatis (No-Show). WA diblokir.`, { duration: 10000 });
+                    }
+                    fetchData();
+                }
+            } catch { /* silent */ }
+        };
+        checkNoShows();
+        const interval = setInterval(checkNoShows, 60_000);
+        return () => clearInterval(interval);
+    }, [pageSlug]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Set up real-time subscriptions
     useEffect(() => {
         if (!pageId) return;
@@ -74,6 +113,9 @@ export default function StationsPage() {
                 fetchData();
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `page_id=eq.${pageId}` }, () => {
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `page_id=eq.${pageId}` }, () => {
                 fetchData();
             })
             .subscribe();
@@ -170,6 +212,39 @@ export default function StationsPage() {
                 }
             });
             setPendingOrders(orderMap);
+
+            // Fetch Pending Booking Requests (pending_approval)
+            const today2 = new Date(); today2.setHours(0, 0, 0, 0);
+            const { data: bookingsData } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('page_id', page.id)
+                .eq('status', 'pending_approval')
+                .gte('start_time', today2.toISOString())
+                .order('created_at', { ascending: true });
+
+            const bookingMap: Record<string, any[]> = {};
+            bookingsData?.forEach(bk => {
+                if (!bookingMap[bk.station_id]) bookingMap[bk.station_id] = [];
+                bookingMap[bk.station_id].push(bk);
+            });
+            setPendingBookings(bookingMap);
+
+            // Fetch confirmed bookings (status: pending = confirmed by admin, awaiting check-in)
+            const { data: confirmedData } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('page_id', page.id)
+                .eq('status', 'pending')
+                .gte('start_time', today2.toISOString())
+                .order('start_time', { ascending: true });
+
+            const confirmedMap: Record<string, any> = {};
+            confirmedData?.forEach(bk => {
+                // Only store the earliest confirmed booking per station
+                if (!confirmedMap[bk.station_id]) confirmedMap[bk.station_id] = bk;
+            });
+            setConfirmedBookings(confirmedMap);
         }
         setLoading(false);
     };
@@ -484,6 +559,54 @@ export default function StationsPage() {
         img.src = "data:image/svg+xml;base64," + btoa(svgData);
     };
 
+    // --- Activate booking with WA verification ---
+    const handleActivateBooking = async (wa: string) => {
+        if (!showActivateModal || !pageId) return;
+        const bk = showActivateModal;
+        const normalised = wa.replace(/\D/g, '');
+        const bkWa = bk.wa_number.replace(/\D/g, '');
+        if (normalised !== bkWa) {
+            toast.error('Nomor WA tidak cocok. Minta customer sebutkan nomor WA yang dipakai saat booking.');
+            return;
+        }
+        await supabase.from('sessions').insert({
+            station_id: bk.station_id,
+            page_id: pageId,
+            start_time: new Date().toISOString(),
+            end_time: bk.end_time,
+            duration_minutes: Math.round((new Date(bk.end_time).getTime() - Date.now()) / 60_000),
+            type: 'timer',
+            status: 'active',
+        });
+        await supabase.from('stations').update({ status: 'active' }).eq('id', bk.station_id);
+        await supabase.from('bookings').update({ status: 'active' }).eq('id', bk.id);
+        toast.success(`Sesi booking ${bk.booking_code} (${bk.nickname}) diaktifkan!`);
+        setShowActivateModal(null);
+        setActivateWa('');
+        fetchData();
+    };
+
+    // --- Handling Booking Requests ---
+    const handleAcceptBooking = async (booking: any) => {
+        try {
+            await supabase.from('bookings').update({ status: 'pending' }).eq('id', booking.id);
+            toast.success(`Booking ${booking.booking_code} (${booking.nickname}) dikonfirmasi!`);
+            fetchData();
+        } catch (e) {
+            toast.error('Gagal konfirmasi booking.');
+        }
+    };
+
+    const handleRejectBooking = async (booking: any) => {
+        try {
+            await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id);
+            toast.success(`Booking ${booking.booking_code} ditolak.`);
+            fetchData();
+        } catch (e) {
+            toast.error('Gagal tolak booking.');
+        }
+    };
+
     // --- Handling Requests ---
     const handleResolveRequest = async (request: any, action: 'approve' | 'reject') => {
         try {
@@ -584,6 +707,7 @@ export default function StationsPage() {
                     let timeDisplay = "IDLE";
                     let costDisplay = "Rp --";
                     let statusLabel = station.type;
+                    const confirmedBk = confirmedBookings[station.id];
 
                     if (isActive && session) {
                         const start = new Date(session.start_time).getTime();
@@ -653,14 +777,62 @@ export default function StationsPage() {
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-lg">{station.name}</h3>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold ${isActive ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-gray-400'
-                                            }`}>
-                                            {statusLabel}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {/* Type label always shown */}
+                                        <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-white/10 text-gray-400">
+                                            {station.type}
                                         </span>
+                                        {/* Status badge */}
+                                        {isActive && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-green-500/20 text-green-400">
+                                                {statusLabel}
+                                            </span>
+                                        )}
+                                        {!isActive && confirmedBk && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-yellow-500/20 text-yellow-400">
+                                                BOOKED
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Booking Requests Alert */}
+                            {pendingBookings[station.id] && pendingBookings[station.id].length > 0 && (
+                                <div className="mb-4 space-y-2">
+                                    {pendingBookings[station.id].map((bk, idx) => {
+                                        const start = new Date(bk.start_time);
+                                        const end = new Date(bk.end_time);
+                                        const fmt = (d: Date) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                                        return (
+                                            <div key={idx} className="p-3 rounded-lg border text-sm flex flex-col gap-2 bg-yellow-500/10 border-yellow-500/30">
+                                                <div className="font-bold flex items-center gap-1 text-yellow-400">
+                                                    <Ticket className="w-4 h-4" />
+                                                    Booking Request Masuk
+                                                </div>
+                                                <div className="text-gray-300 ml-5 space-y-0.5">
+                                                    <div className="font-semibold">{bk.nickname} · {bk.wa_number}</div>
+                                                    <div className="text-xs text-gray-400">{fmt(start)} – {fmt(end)} ({Math.round((end.getTime() - start.getTime()) / 3600000)} jam) · <span className="text-yellow-400 font-mono">{bk.booking_code}</span></div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleRejectBooking(bk)}
+                                                        className="flex-1 bg-white/10 hover:bg-white/20 text-white py-1.5 rounded"
+                                                    >
+                                                        Tolak
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAcceptBooking(bk)}
+                                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-1.5 rounded font-bold"
+                                                    >
+                                                        Konfirmasi
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
 
                             {/* Pending Requests Alert */}
                             {stationRequests[station.id] && stationRequests[station.id].length > 0 && (
@@ -724,20 +896,53 @@ export default function StationsPage() {
                                 </div>
                             )}
 
-                            {/* Info */}
+                            {/* Info Box */}
                             <div className="bg-black/20 rounded-xl p-4 mb-4">
-                                <div className="flex justify-between items-end mb-2">
-                                    <div>
-                                        <p className="text-xs text-gray-400 mb-1">{isActive ? (session.type === 'rental' ? 'Due In' : 'Time') : 'Status'}</p>
-                                        <p className={`text-2xl font-mono font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
-                                            {timeDisplay}
-                                        </p>
+                                {isActive ? (
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-xs text-gray-400 mb-1">{session.type === 'rental' ? 'Due In' : 'Time'}</p>
+                                            <p className="text-2xl font-mono font-bold text-white">{timeDisplay}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
+                                            <p className="text-lg font-bold text-primary">{costDisplay}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
-                                        <p className="text-lg font-bold text-primary">{costDisplay}</p>
+                                ) : confirmedBk ? (
+                                    // BOOKED: show booking details in info area
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Booking</p>
+                                            <span className="text-xs font-mono font-bold text-yellow-400">{confirmedBk.booking_code}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Nama</p>
+                                            <p className="text-sm font-semibold">{confirmedBk.nickname}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Datang</p>
+                                            <p className="text-sm font-semibold">{new Date(confirmedBk.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Batas check-in</p>
+                                            <p className="text-sm font-semibold text-yellow-400">
+                                                {new Date(new Date(confirmedBk.start_time).getTime() + 5 * 60_000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-xs text-gray-400 mb-1">Status</p>
+                                            <p className="text-2xl font-mono font-bold text-gray-500">IDLE</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
+                                            <p className="text-lg font-bold text-primary">Rp --</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Controls */}
@@ -749,6 +954,15 @@ export default function StationsPage() {
                                     >
                                         <Square className="w-4 h-4 fill-current" />
                                         Stop & Checkout
+                                    </button>
+                                ) : confirmedBk ? (
+                                    // Station idle with confirmed booking → open WA verification modal
+                                    <button
+                                        onClick={() => { setShowActivateModal(confirmedBk); setActivateWa(''); }}
+                                        className="w-full bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/40 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <Ticket className="w-4 h-4" />
+                                        Aktifkan Sesi Booking ({confirmedBk.booking_code})
                                     </button>
                                 ) : (
                                     <button
@@ -764,6 +978,60 @@ export default function StationsPage() {
                     );
                 })}
             </div>
+
+            {/* Activate Booking Modal (WA Verification) */}
+            {showActivateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-yellow-500/30 rounded-2xl w-full max-w-sm p-6">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Ticket className="w-5 h-5 text-yellow-400" />
+                            <h2 className="text-lg font-bold">Verifikasi Booking</h2>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-4">
+                            Minta customer sebutkan nomor WA yang dipakai saat booking.
+                        </p>
+                        <div className="bg-black/20 rounded-xl p-3 mb-4 space-y-1 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Kode</span>
+                                <span className="font-mono font-bold text-yellow-400">{showActivateModal.booking_code}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Nama</span>
+                                <span className="font-semibold">{showActivateModal.nickname}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Jadwal</span>
+                                <span>{new Date(showActivateModal.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} – {new Date(showActivateModal.end_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                        <label className="block text-sm text-gray-400 mb-1">Nomor WA Customer</label>
+                        <input
+                            type="tel"
+                            placeholder="Contoh: 08123456789"
+                            autoFocus
+                            value={activateWa}
+                            onChange={e => setActivateWa(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleActivateBooking(activateWa)}
+                            className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-yellow-500 focus:outline-none mb-4 font-mono"
+                        />
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => { setShowActivateModal(null); setActivateWa(''); }}
+                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 py-2.5 rounded-xl font-semibold"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={() => handleActivateBooking(activateWa)}
+                                disabled={!activateWa}
+                                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black py-2.5 rounded-xl font-bold disabled:opacity-50"
+                            >
+                                Aktifkan Sesi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add Station Modal */}
             {showAddModal && (

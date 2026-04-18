@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Monitor, Clock, DollarSign, ChefHat, Plus, ExternalLink, UtensilsCrossed, Rocket, CheckSquare, BarChart3, TrendingUp, Ticket } from 'lucide-react';
+import { Monitor, Clock, ChefHat, Plus, ExternalLink, UtensilsCrossed, Rocket, CheckSquare, BarChart3, TrendingUp, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -11,7 +11,7 @@ export default function DashboardPage() {
         activeStations: 0,
         totalStations: 0,
         pendingOrders: 0,
-        revenueToday: 0
+        pendingBookings: 0,
     });
     const [sessions, setSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -57,8 +57,17 @@ export default function DashboardPage() {
                 activeStations: activeSessions || 0,
                 totalStations: totalStations || 0,
                 pendingOrders: pendingOrders || 0,
-                revenueToday: 0
+                pendingBookings: 0,
             });
+
+            // Booking requests (pending_approval)
+            const { count: pendingBookings } = await supabase
+                .from('bookings')
+                .select('*', { count: 'exact', head: true })
+                .eq('page_id', pageData.id)
+                .eq('status', 'pending_approval');
+
+            setStats(prev => ({ ...prev, pendingBookings: pendingBookings || 0 }));
 
             // Get Revenue Today
             const msStart = new Date();
@@ -197,19 +206,29 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <div className="bg-surface border border-white/10 rounded-2xl p-6">
+                <Link
+                    href="/dashboard/bookings"
+                    className={`bg-surface border rounded-2xl p-6 transition-all hover:border-yellow-500/40 ${stats.pendingBookings > 0 ? 'border-yellow-500/40 bg-yellow-500/5 animate-pulse' : 'border-white/10'
+                        }`}
+                >
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
-                            <DollarSign className="w-6 h-6" />
+                        <div className="p-3 bg-yellow-500/20 rounded-xl text-yellow-400 relative">
+                            <Ticket className="w-6 h-6" />
+                            {stats.pendingBookings > 0 && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">
+                                    {stats.pendingBookings}
+                                </span>
+                            )}
                         </div>
                         <div>
-                            <p className="text-sm text-gray-400">Today's Revenue</p>
-                            <p className="text-2xl font-bold">
-                                {formatCurrency(stats.revenueToday)}
-                            </p>
+                            <p className="text-sm text-gray-400">Booking Request</p>
+                            <p className="text-2xl font-bold">{stats.pendingBookings}</p>
+                            {stats.pendingBookings > 0 && (
+                                <p className="text-xs text-yellow-400 font-semibold">Menunggu konfirmasi</p>
+                            )}
                         </div>
                     </div>
-                </div>
+                </Link>
             </div>
 
             {/* Revenue Chart */}

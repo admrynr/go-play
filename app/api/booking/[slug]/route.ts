@@ -39,7 +39,7 @@ export async function GET(
         .eq('page_id', page.id)
         .eq('status', 'active');
 
-    // Fetch open (pending/active) bookings for today and future
+    // Fetch open bookings for today and future (include pending_approval so slot is locked)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -47,7 +47,7 @@ export async function GET(
         .from('bookings')
         .select('id, station_id, start_time, end_time, status, nickname')
         .eq('page_id', page.id)
-        .in('status', ['pending', 'active'])
+        .in('status', ['pending_approval', 'pending', 'active'])
         .gte('start_time', todayStart.toISOString())
         .order('start_time');
 
@@ -118,9 +118,9 @@ export async function POST(
         .from('bookings')
         .select('id')
         .eq('station_id', station_id)
-        .in('status', ['pending', 'active'])
-        .lt('start_time', end_time)    // existing starts before our end
-        .gt('end_time', start_time);   // existing ends after our start
+        .in('status', ['pending_approval', 'pending', 'active'])
+        .lt('start_time', end_time)
+        .gt('end_time', start_time);
 
     if (conflicts && conflicts.length > 0) {
         return NextResponse.json(
@@ -152,7 +152,7 @@ export async function POST(
             wa_number,
             start_time,
             end_time,
-            status: 'pending',
+            status: 'pending_approval',
         })
         .select()
         .single();

@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
-    ArrowLeft, CheckCircle2, Clock, Wifi, Monitor, AlertTriangle,
-    ChevronRight, Loader2, Copy, Share2
+    ArrowLeft, CheckCircle2, Clock, Monitor, AlertTriangle,
+    ChevronRight, Loader2, Copy, Share2, Download, XCircle, Hourglass, Search
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEAD_TIME = 10; // minutes
-const BUFFER_TIME = 5; // minutes
+const LEAD_TIME = 10;   // minutes
+const BUFFER_TIME = 5;  // minutes
 const REFRESH_MS = 15_000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -22,35 +22,31 @@ interface Booking { id: string; station_id: string; start_time: string; end_time
 interface PageData { id: string; business_name: string; theme_color: string; whatsapp_number: string }
 interface Ticket { booking_code: string; nickname: string; wa_number: string; start_time: string; end_time: string; station_name: string }
 
-type ViewState = 'board' | 'form' | 'ticket';
+type ViewState = 'board' | 'form' | 'waiting' | 'ticket' | 'rejected';
 
 // ─── Helper: station display state ───────────────────────────────────────────
-function getStationDisplay(
-    station: Station,
-    sessions: Session[],
-    bookings: Booking[],
-    now: Date
-) {
+function getStationDisplay(station: Station, sessions: Session[], bookings: Booking[], now: Date) {
     const session = sessions.find(s => s.station_id === station.id);
     const nextBooking = bookings
-        .filter(b => b.station_id === station.id && new Date(b.start_time) >= now)
+        .filter(b => b.station_id === station.id && ['pending_approval', 'pending'].includes(b.status) && new Date(b.start_time) >= now)
         .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
 
     if (station.status === 'maintenance') {
-        return { color: 'gray', label: 'Maintenance', bookable: false, estAvailable: null };
+        return { color: 'gray', label: 'Maintenance', bookable: false, estAvailable: null, hasBooking: false };
     }
     if (session) {
         if (session.type === 'open' || !session.end_time) {
-            return { color: 'red', label: 'Sedang Dipakai', bookable: false, estAvailable: null };
+            return { color: 'red', label: 'Sedang Dipakai', bookable: false, estAvailable: null, hasBooking: false };
         }
         const estEnd = new Date(new Date(session.end_time).getTime() + BUFFER_TIME * 60_000);
-        return { color: 'red', label: 'Sedang Dipakai', bookable: false, estAvailable: estEnd };
+        return { color: 'red', label: 'Sedang Dipakai', bookable: false, estAvailable: estEnd, hasBooking: false };
     }
     if (nextBooking && new Date(nextBooking.start_time) <= new Date(now.getTime() + LEAD_TIME * 60_000 + 60_000)) {
         const estEnd = new Date(new Date(nextBooking.end_time).getTime() + BUFFER_TIME * 60_000);
-        return { color: 'yellow', label: 'Dipesan', bookable: false, estAvailable: estEnd };
+        const label = nextBooking.status === 'pending_approval' ? 'Menunggu Konfirmasi' : 'Dipesan';
+        return { color: 'yellow', label, bookable: false, estAvailable: estEnd, hasBooking: nextBooking.status === 'pending' };
     }
-    return { color: 'green', label: 'Tersedia', bookable: true, estAvailable: null };
+    return { color: 'green', label: 'Tersedia', bookable: true, estAvailable: null, hasBooking: false };
 }
 
 function fmt(date: Date) {
@@ -59,6 +55,11 @@ function fmt(date: Date) {
 function fmtDatetime(iso: string) {
     const d = new Date(iso);
     return d.toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+/** Returns 'YYYY-MM-DDTHH:mm' in LOCAL time — required for datetime-local inputs */
+function toLocalDatetimeString(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -75,9 +76,16 @@ export default function BookingPage() {
     const [view, setView] = useState<ViewState>('board');
     const [selectedStation, setSelected] = useState<Station | null>(null);
     const [ticket, setTicket] = useState<Ticket | null>(null);
+    const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [downloading, setDownloading] = useState(false);
+
+    // Lookup form state (for finding existing ticket from board)
+    const [lookupQuery, setLookupQuery] = useState('');
+    const [lookupLoading, setLookupLoading] = useState<string | null>(null); // station_id
+    const [lookupError, setLookupError] = useState('');
 
     // Form state
     const [nickname, setNickname] = useState('');
@@ -85,7 +93,8 @@ export default function BookingPage() {
     const [arrivalTime, setArrivalTime] = useState('');
     const [duration, setDuration] = useState(1);
 
-    // Fetch availability data
+    const ticketRef = useRef<HTMLDivElement>(null);
+
     const fetchAvailability = useCallback(async () => {
         try {
             const res = await fetch(`/api/booking/${slug}`);
@@ -109,7 +118,7 @@ export default function BookingPage() {
         return () => clearInterval(interval);
     }, [fetchAvailability]);
 
-    // Realtime: refresh on bookings or sessions change
+    // Realtime: board refresh
     useEffect(() => {
         if (!pageData) return;
         const channel = supabase
@@ -121,11 +130,39 @@ export default function BookingPage() {
         return () => { supabase.removeChannel(channel); };
     }, [pageData, fetchAvailability, supabase]);
 
-    // Compute min arrival time
+    // Realtime: watch specific booking for approval/rejection
+    useEffect(() => {
+        if (!pendingBookingId || view !== 'waiting') return;
+        const channel = supabase
+            .channel(`booking-watch-${pendingBookingId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE', schema: 'public', table: 'bookings',
+                filter: `id=eq.${pendingBookingId}`
+            }, (payload) => {
+                const updated = payload.new as { status: string; booking_code: string; nickname: string; wa_number: string; start_time: string; end_time: string };
+                if (updated.status === 'pending') {
+                    // Admin accepted → show ticket
+                    setTicket({
+                        booking_code: updated.booking_code,
+                        nickname: updated.nickname,
+                        wa_number: updated.wa_number,
+                        start_time: updated.start_time,
+                        end_time: updated.end_time,
+                        station_name: selectedStation?.name ?? '',
+                    });
+                    setView('ticket');
+                } else if (updated.status === 'cancelled') {
+                    setView('rejected');
+                }
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [pendingBookingId, view, supabase, selectedStation]);
+
     const minArrival = useMemo(() => {
         const d = new Date(Date.now() + LEAD_TIME * 60_000);
         d.setSeconds(0, 0);
-        return d.toISOString().slice(0, 16);
+        return toLocalDatetimeString(d);
     }, [now]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const themeColor = pageData?.theme_color ?? '#003791';
@@ -134,6 +171,8 @@ export default function BookingPage() {
         setSelected(s);
         setArrivalTime(minArrival);
         setError('');
+        setLookupQuery('');
+        setLookupError('');
         setView('form');
     };
 
@@ -163,20 +202,75 @@ export default function BookingPage() {
                 setError(data.message || 'Terjadi kesalahan, coba lagi.');
                 return;
             }
-            setTicket({
-                booking_code: data.booking.booking_code,
-                nickname: data.booking.nickname,
-                wa_number: data.booking.wa_number,
-                start_time: data.booking.start_time,
-                end_time: data.booking.end_time,
-                station_name: selectedStation.name,
-            });
-            setView('ticket');
+            // Go to waiting view — realtime will trigger ticket display
+            setPendingBookingId(data.booking.id);
+            setView('waiting');
             fetchAvailability();
         } catch {
             setError('Koneksi gagal, periksa internet Anda.');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Lookup existing ticket by booking code or WA number
+    const handleLookup = async (stationId: string) => {
+        const q = lookupQuery.trim();
+        if (!q) return;
+        setLookupLoading(stationId);
+        setLookupError('');
+        try {
+            const { data } = await supabase
+                .from('bookings')
+                .select('*, stations(name)')
+                .eq('page_id', pageData!.id)
+                .eq('station_id', stationId)
+                .in('status', ['pending', 'pending_approval'])
+                .or(`booking_code.ilike.${q},wa_number.eq.${q.replace(/\D/g, '')}`)
+                .limit(1)
+                .maybeSingle();
+            if (!data) {
+                setLookupError('Tiket tidak ditemukan. Periksa kode atau nomor WA.');
+                return;
+            }
+            setSelected(stations.find(s => s.id === stationId) ?? null);
+            setTicket({
+                booking_code: data.booking_code,
+                nickname: data.nickname,
+                wa_number: data.wa_number,
+                start_time: data.start_time,
+                end_time: data.end_time,
+                station_name: (data.stations as { name: string } | null)?.name ?? '',
+            });
+            setView('ticket');
+        } catch {
+            setLookupError('Gagal mencari tiket.');
+        } finally {
+            setLookupLoading(null);
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!ticketRef.current) return;
+        setDownloading(true);
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+            const domtoimage = require('dom-to-image-more') as any;
+            const blob = await domtoimage.toBlob(ticketRef.current, {
+                bgcolor: '#141414',
+                scale: 2,
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `tiket-${ticket?.booking_code ?? 'booking'}.png`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download error:', err);
+            alert('Gagal download tiket. Coba screenshot manual.');
+        } finally {
+            setDownloading(false);
         }
     };
 
@@ -202,7 +296,6 @@ export default function BookingPage() {
 
     return (
         <div className="min-h-screen bg-[#0A0A0A] text-white font-sans">
-            {/* Custom theme color as CSS var */}
             <style>{`:root { --theme: ${themeColor}; }`}</style>
 
             {/* ── Header ── */}
@@ -224,7 +317,7 @@ export default function BookingPage() {
 
             <div className="container mx-auto px-4 py-6 max-w-2xl">
 
-                {/* ══════════════════════ BOARD VIEW ══════════════════════ */}
+                {/* ══ BOARD VIEW ══ */}
                 {view === 'board' && (
                     <>
                         <div className="mb-6 text-center">
@@ -234,7 +327,6 @@ export default function BookingPage() {
                             </p>
                         </div>
 
-                        {/* Legend */}
                         <div className="flex flex-wrap justify-center gap-4 mb-6 text-xs font-semibold">
                             {[
                                 { color: 'bg-green-500', label: 'Tersedia' },
@@ -255,9 +347,9 @@ export default function BookingPage() {
                                 <p>Belum ada stasiun terdaftar.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <div className="space-y-3">
                                 {stations.map(station => {
-                                    const { color, label, bookable, estAvailable } = getStationDisplay(station, sessions, bookings, now);
+                                    const { color, label, bookable, estAvailable, hasBooking } = getStationDisplay(station, sessions, bookings, now);
                                     const colorMap: Record<string, string> = {
                                         green: 'border-green-500/50  bg-green-500/10',
                                         yellow: 'border-yellow-400/50 bg-yellow-400/10',
@@ -270,33 +362,56 @@ export default function BookingPage() {
                                         red: 'bg-red-500',
                                         gray: 'bg-gray-500',
                                     };
+                                    const labelColorMap: Record<string, string> = {
+                                        green: 'text-green-400', yellow: 'text-yellow-400',
+                                        red: 'text-red-400', gray: 'text-gray-400',
+                                    };
 
                                     return (
-                                        <button
-                                            key={station.id}
-                                            disabled={!bookable}
-                                            onClick={() => bookable && handleSelectStation(station)}
-                                            className={`relative p-4 rounded-2xl border transition-all text-left ${colorMap[color]}
-                        ${bookable ? 'hover:scale-105 cursor-pointer hover:border-opacity-100' : 'cursor-not-allowed opacity-80'}`}
-                                        >
-                                            <div className={`w-3 h-3 rounded-full mb-3 ${dotMap[color]}`} />
-                                            <p className="font-bold text-sm">{station.name}</p>
-                                            <p className="text-xs text-gray-400">{station.type}</p>
-                                            <p className={`text-xs font-semibold mt-1 ${color === 'green' ? 'text-green-400' :
-                                                    color === 'yellow' ? 'text-yellow-400' :
-                                                        color === 'red' ? 'text-red-400' : 'text-gray-400'
-                                                }`}>{label}</p>
-                                            {estAvailable && (
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    Est. kosong: {fmt(estAvailable)}
-                                                </p>
-                                            )}
-                                            {bookable && (
-                                                <div className="absolute bottom-3 right-3 text-white/40">
-                                                    <ChevronRight className="w-4 h-4" />
+                                        <div key={station.id} className={`rounded-2xl border transition-all ${colorMap[color]}`}>
+                                            {/* Station info row */}
+                                            <button
+                                                disabled={!bookable}
+                                                onClick={() => bookable && handleSelectStation(station)}
+                                                className={`w-full p-4 text-left flex items-center gap-4 ${bookable ? 'hover:opacity-90 cursor-pointer' : 'cursor-default'}`}
+                                            >
+                                                <span className={`w-3 h-3 rounded-full shrink-0 ${dotMap[color]}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold">{station.name}</p>
+                                                    <p className="text-xs text-gray-400">{station.type}</p>
+                                                    <p className={`text-xs font-semibold mt-0.5 ${labelColorMap[color]}`}>{label}</p>
+                                                    {estAvailable && (
+                                                        <p className="text-xs text-gray-500 mt-0.5">Est. kosong: {fmt(estAvailable)}</p>
+                                                    )}
+                                                </div>
+                                                {bookable && <ChevronRight className="w-4 h-4 text-white/40 shrink-0" />}
+                                            </button>
+
+                                            {/* Lookup form — only shown when station is booked (status pending, confirmed) */}
+                                            {hasBooking && (
+                                                <div className="px-4 pb-4 border-t border-white/10 pt-3">
+                                                    <p className="text-xs text-yellow-400 font-semibold mb-2">Punya tiket untuk stasiun ini?</p>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Kode BK-XXXX atau No. WA"
+                                                            value={lookupQuery}
+                                                            onChange={e => { setLookupQuery(e.target.value); setLookupError(''); }}
+                                                            onKeyDown={e => e.key === 'Enter' && handleLookup(station.id)}
+                                                            className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-400/50"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleLookup(station.id)}
+                                                            disabled={lookupLoading === station.id}
+                                                            className="px-3 py-2 bg-yellow-400/20 border border-yellow-400/30 text-yellow-400 rounded-xl text-sm font-bold hover:bg-yellow-400/30 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {lookupLoading === station.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                                        </button>
+                                                    </div>
+                                                    {lookupError && <p className="text-xs text-red-400 mt-1">{lookupError}</p>}
                                                 </div>
                                             )}
-                                        </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -308,7 +423,7 @@ export default function BookingPage() {
                     </>
                 )}
 
-                {/* ══════════════════════ FORM VIEW ══════════════════════ */}
+                {/* ══ FORM VIEW ══ */}
                 {view === 'form' && selectedStation && (
                     <>
                         <button onClick={() => setView('board')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-6">
@@ -322,7 +437,6 @@ export default function BookingPage() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-5">
-                            {/* Arrival time */}
                             <div>
                                 <label className="block text-sm font-semibold mb-2">
                                     <Clock className="inline w-4 h-4 mr-1" /> Jam Datang
@@ -338,7 +452,6 @@ export default function BookingPage() {
                                 <p className="text-xs text-gray-500 mt-1">Minimal {LEAD_TIME} menit dari sekarang</p>
                             </div>
 
-                            {/* Duration */}
                             <div>
                                 <label className="block text-sm font-semibold mb-2">Estimasi Durasi Main</label>
                                 <div className="grid grid-cols-4 gap-2">
@@ -348,8 +461,8 @@ export default function BookingPage() {
                                             type="button"
                                             onClick={() => setDuration(h)}
                                             className={`py-3 rounded-xl border text-sm font-bold transition-all ${duration === h
-                                                    ? 'border-none text-white'
-                                                    : 'border-white/10 text-gray-400 hover:border-white/30'
+                                                ? 'border-none text-white'
+                                                : 'border-white/10 text-gray-400 hover:border-white/30'
                                                 }`}
                                             style={duration === h ? { background: themeColor } : {}}
                                         >
@@ -363,7 +476,6 @@ export default function BookingPage() {
                                 </p>
                             </div>
 
-                            {/* Nickname */}
                             <div>
                                 <label className="block text-sm font-semibold mb-2">Nama Panggilan</label>
                                 <input
@@ -377,7 +489,6 @@ export default function BookingPage() {
                                 />
                             </div>
 
-                            {/* WA Number */}
                             <div>
                                 <label className="block text-sm font-semibold mb-2">Nomor WhatsApp</label>
                                 <input
@@ -404,25 +515,77 @@ export default function BookingPage() {
                                 style={{ background: themeColor }}
                                 className="w-full py-4 rounded-xl font-bold text-white text-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
                             >
-                                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Konfirmasi Booking <ChevronRight className="w-5 h-5" /></>}
+                                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Kirim Permintaan Booking <ChevronRight className="w-5 h-5" /></>}
                             </button>
                         </form>
                     </>
                 )}
 
-                {/* ══════════════════════ TICKET VIEW ══════════════════════ */}
+                {/* ══ WAITING VIEW ══ */}
+                {view === 'waiting' && (
+                    <div className="text-center py-12">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-500/10 mb-6">
+                            <Hourglass className="w-10 h-10 text-yellow-400 animate-pulse" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Menunggu Konfirmasi</h2>
+                        <p className="text-gray-400 text-sm max-w-xs mx-auto mb-8">
+                            Permintaan booking kamu sudah masuk. Halaman ini akan otomatis diperbarui saat admin mengkonfirmasi.
+                        </p>
+                        <div className="flex flex-col items-center gap-2 mb-8">
+                            <div className="flex gap-1">
+                                {[0, 0.2, 0.4].map(d => (
+                                    <span key={d} className="w-2 h-2 rounded-full bg-yellow-400"
+                                        style={{ animation: `bounce 1.2s ${d}s infinite` }} />
+                                ))}
+                            </div>
+                        </div>
+                        <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }`}</style>
+                        <p className="text-xs text-gray-600">
+                            Stasiun:{' '}
+                            <span className="text-gray-400 font-semibold">{selectedStation?.name}</span>
+                        </p>
+                        <button
+                            onClick={() => setView('board')}
+                            className="mt-8 text-sm text-gray-500 hover:text-white underline"
+                        >
+                            Kembali ke board
+                        </button>
+                    </div>
+                )}
+
+                {/* ══ REJECTED VIEW ══ */}
+                {view === 'rejected' && (
+                    <div className="text-center py-12">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/10 mb-6">
+                            <XCircle className="w-10 h-10 text-red-400" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Booking Tidak Dikonfirmasi</h2>
+                        <p className="text-gray-400 text-sm max-w-xs mx-auto mb-8">
+                            Maaf, permintaan booking kamu tidak dapat dikonfirmasi oleh admin. Silakan coba waktu atau stasiun lain.
+                        </p>
+                        <button
+                            onClick={() => { setView('board'); setPendingBookingId(null); setNickname(''); setWaNumber(''); }}
+                            style={{ background: themeColor }}
+                            className="px-8 py-3 rounded-xl font-bold text-white hover:opacity-90 transition-opacity"
+                        >
+                            Coba Lagi
+                        </button>
+                    </div>
+                )}
+
+                {/* ══ TICKET VIEW ══ */}
                 {view === 'ticket' && ticket && (
                     <div className="text-center">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 mb-4">
                             <CheckCircle2 className="w-8 h-8 text-green-400" />
                         </div>
-                        <h2 className="text-2xl font-bold mb-1">Booking Berhasil!</h2>
+                        <h2 className="text-2xl font-bold mb-1">Booking Dikonfirmasi!</h2>
                         <p className="text-gray-400 text-sm mb-8">Simpan tiket ini dan tunjukkan ke kasir saat tiba.</p>
 
-                        {/* Ticket card */}
-                        <div className="bg-white/5 border border-white/15 rounded-3xl p-6 text-left mb-6 relative overflow-hidden">
-                            {/* Decorative corner */}
-                            <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10" style={{ background: themeColor, transform: 'translate(30%, -30%)' }} />
+                        {/* Ticket card — ref for html2canvas */}
+                        <div ref={ticketRef} className="bg-[#141414] border border-white/15 rounded-3xl p-6 text-left mb-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10"
+                                style={{ background: themeColor, transform: 'translate(30%, -30%)' }} />
 
                             <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Kode Booking</p>
                             <div className="flex items-center gap-3 mb-6">
@@ -452,9 +615,10 @@ export default function BookingPage() {
                             </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        {/* Actions */}
+                        <div className="flex gap-3 mb-3">
                             <button
-                                onClick={() => { setView('board'); setTicket(null); setNickname(''); setWaNumber(''); }}
+                                onClick={() => { setView('board'); setTicket(null); setPendingBookingId(null); setNickname(''); setWaNumber(''); }}
                                 className="flex-1 py-3 rounded-xl border border-white/15 text-sm font-semibold hover:bg-white/5 transition-colors"
                             >
                                 Booking Lagi
@@ -464,9 +628,17 @@ export default function BookingPage() {
                                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-center text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
                                 style={{ background: themeColor }}
                             >
-                                <Share2 className="w-4 h-4" /> Kembali ke Halaman Rental
+                                <Share2 className="w-4 h-4" /> Halaman Rental
                             </Link>
                         </div>
+                        <button
+                            onClick={handleDownload}
+                            disabled={downloading}
+                            className="w-full py-3 rounded-xl border border-white/10 text-sm font-semibold text-gray-300 hover:bg-white/5 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                            Download Tiket (.png)
+                        </button>
                     </div>
                 )}
             </div>
@@ -474,7 +646,6 @@ export default function BookingPage() {
     );
 }
 
-// ─── Mini helper component ─────────────────────────────────────────────────
 function Row({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex justify-between gap-4">
