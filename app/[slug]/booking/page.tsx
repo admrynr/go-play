@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
     ArrowLeft, CheckCircle2, Clock, Monitor, AlertTriangle,
@@ -92,8 +92,6 @@ export default function BookingPage() {
     const [waNumber, setWaNumber] = useState('');
     const [arrivalTime, setArrivalTime] = useState('');
     const [duration, setDuration] = useState(1);
-
-    const ticketRef = useRef<HTMLDivElement>(null);
 
     const fetchAvailability = useCallback(async () => {
         try {
@@ -250,22 +248,91 @@ export default function BookingPage() {
         }
     };
 
-    const handleDownload = async () => {
-        if (!ticketRef.current) return;
+    const handleDownload = () => {
+        if (!ticket) return;
         setDownloading(true);
         try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-            const domtoimage = require('dom-to-image-more') as any;
-            const blob = await domtoimage.toBlob(ticketRef.current, {
-                bgcolor: '#141414',
-                scale: 2,
+            const W = 640, H = 480, PAD = 40, R = 24;
+            const canvas = document.createElement('canvas');
+            // HiDPI
+            const scale = window.devicePixelRatio || 2;
+            canvas.width = W * scale;
+            canvas.height = H * scale;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            const ctx = canvas.getContext('2d')!;
+            ctx.scale(scale, scale);
+
+            // Background card
+            ctx.fillStyle = '#141414';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, W, H, R);
+            ctx.fill();
+
+            // Accent orb top-right
+            const g = ctx.createRadialGradient(W - 60, 60, 0, W - 60, 60, 160);
+            g.addColorStop(0, (themeColor || '#003791') + '55');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, W, H);
+
+            // Border
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(0.5, 0.5, W - 1, H - 1, R);
+            ctx.stroke();
+
+            // Heading label
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '500 11px system-ui, sans-serif';
+            ctx.letterSpacing = '2px';
+            ctx.fillText('KODE BOOKING', PAD, PAD + 16);
+            ctx.letterSpacing = '0px';
+
+            // Booking code
+            ctx.fillStyle = themeColor || '#003791';
+            ctx.font = 'bold 52px monospace';
+            ctx.fillText(ticket.booking_code, PAD, PAD + 72);
+
+            // Divider
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(PAD, PAD + 86, W - PAD * 2, 1);
+
+            // Info rows
+            const rows = [
+                ['Nama', ticket.nickname],
+                ['Stasiun', ticket.station_name],
+                ['Mulai', fmtDatetime(ticket.start_time)],
+                ['Selesai', fmtDatetime(ticket.end_time)],
+                ['Nomor WA', ticket.wa_number],
+            ];
+            let y = PAD + 116;
+            rows.forEach(([label, value]) => {
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '400 13px system-ui, sans-serif';
+                ctx.fillText(label, PAD, y);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '600 13px system-ui, sans-serif';
+                ctx.fillText(value, W / 2, y);
+                y += 32;
             });
-            const url = URL.createObjectURL(blob);
+
+            // Footer note
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.beginPath();
+            ctx.roundRect(PAD, H - PAD - 60, W - PAD * 2, 52, 12);
+            ctx.fill();
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '400 11px system-ui, sans-serif';
+            ctx.fillText('Tunjukkan tiket ini atau nomor WA ke kasir saat tiba.', PAD + 12, H - PAD - 35);
+            ctx.fillText('Check-in dalam 5 menit setelah jam booking.', PAD + 12, H - PAD - 16);
+
+            // Download
             const link = document.createElement('a');
-            link.download = `tiket-${ticket?.booking_code ?? 'booking'}.png`;
-            link.href = url;
+            link.download = `tiket-${ticket.booking_code}.png`;
+            link.href = canvas.toDataURL('image/png');
             link.click();
-            URL.revokeObjectURL(url);
         } catch (err) {
             console.error('Download error:', err);
             alert('Gagal download tiket. Coba screenshot manual.');
@@ -583,7 +650,7 @@ export default function BookingPage() {
                         <p className="text-gray-400 text-sm mb-8">Simpan tiket ini dan tunjukkan ke kasir saat tiba.</p>
 
                         {/* Ticket card — ref for html2canvas */}
-                        <div ref={ticketRef} className="bg-[#141414] border border-white/15 rounded-3xl p-6 text-left mb-6 relative overflow-hidden">
+                        <div className="bg-[#141414] border border-white/15 rounded-3xl p-6 text-left mb-6 relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10"
                                 style={{ background: themeColor, transform: 'translate(30%, -30%)' }} />
 
