@@ -276,6 +276,16 @@ export default function BuilderPage() {
                                 />
                             </div>
                         </div>
+
+                        <div className="space-y-2 pt-2 border-t border-white/5">
+                            <label className="text-xs text-gray-400">Background Hero Image</label>
+                            <ImageUpload
+                                onUpload={(url) => setFormData(prev => ({ ...prev, customConfig: { ...(prev.customConfig || {}), heroBgImage: url } }))}
+                                currentImage={formData.customConfig?.heroBgImage}
+                                bucket="public_assets"
+                            />
+                            <p className="text-xs text-gray-500">Akan menimpa warna/pola banner bawaan jika diisi.</p>
+                        </div>
                     </div>
 
                     {/* Template Selection */}

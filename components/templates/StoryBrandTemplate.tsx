@@ -167,8 +167,18 @@ export default function StoryBrandTemplate({
             </AnimatePresence>
 
             {/* 1. HERO SECTION (The Solution) */}
-            <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden flex items-center min-h-[90vh]">
-                <div className="absolute inset-0 overflow-hidden">
+            <section
+                className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden flex items-center min-h-[90vh]"
+                style={{
+                    backgroundImage: `url('${customConfig?.heroBgImage || '/hero-default.png'}')`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                }}
+            >
+                {/* Background Image Overlay */}
+                <div className="absolute inset-0 bg-[#0a0118]/85 z-0 backdrop-blur-[2px]"></div>
+
+                <div className="absolute inset-0 overflow-hidden z-0">
                     <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-primary/20 rounded-full blur-[120px] opacity-50" />
                     <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[100px] opacity-30" />
                 </div>
