@@ -9,7 +9,7 @@ export default function ReportsPage() {
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<any[]>([]);
     const [filter, setFilter] = useState<'today' | 'week' | 'month'>('today');
-    const [summary, setSummary] = useState({ totalRevenue: 0, totalSessions: 0, avgRevenue: 0 });
+    const [summary, setSummary] = useState({ totalRevenue: 0, totalSessions: 0, avgRevenue: 0, onlineCount: 0, walkinCount: 0 });
 
     const [selectedSession, setSelectedSession] = useState<any>(null);
     const [sessionDetails, setSessionDetails] = useState<any>(null);
@@ -36,7 +36,7 @@ export default function ReportsPage() {
         if (page) {
             let query = supabase
                 .from('sessions')
-                .select('*, stations(name)')
+                .select('*, stations(name), bookings(booking_code, nickname, wa_number)')
                 .eq('page_id', page.id)
                 .eq('status', 'completed')
                 .order('end_time', { ascending: false });
@@ -63,10 +63,13 @@ export default function ReportsPage() {
                 // Aggregation
                 const total = data.reduce((sum, s) => sum + (s.total_amount || 0), 0);
                 const count = data.length;
+                const onlineCount = data.filter(s => !!s.booking_id).length;
                 setSummary({
                     totalRevenue: total,
                     totalSessions: count,
-                    avgRevenue: count > 0 ? total / count : 0
+                    avgRevenue: count > 0 ? total / count : 0,
+                    onlineCount,
+                    walkinCount: count - onlineCount,
                 });
             }
         }
@@ -104,6 +107,10 @@ export default function ReportsPage() {
         const data = sessions.map(s => ({
             "Session ID": s.id,
             "Station": s.stations?.name || 'Unknown',
+            "Sumber": s.booking_id ? 'Online Booking' : 'Walk-in',
+            "Booking Code": s.bookings?.booking_code || '-',
+            "Customer": s.bookings?.nickname || '-',
+            "WA": s.bookings?.wa_number || '-',
             "Start Time": new Date(s.start_time).toLocaleString(),
             "End Time": new Date(s.end_time).toLocaleString(),
             "Type": s.type,
@@ -158,34 +165,44 @@ export default function ReportsPage() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-surface border border-white/10 rounded-2xl p-6 flex items-center gap-4">
-                    <div className="p-4 bg-green-500/20 rounded-xl text-green-500">
-                        <DollarSign className="w-8 h-8" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-surface border border-white/10 rounded-2xl p-5 flex items-center gap-3 col-span-2 md:col-span-1">
+                    <div className="p-3 bg-green-500/20 rounded-xl text-green-500">
+                        <DollarSign className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="text-gray-400 text-sm uppercase font-bold">Total Revenue</p>
-                        <p className="text-2xl font-bold font-mono">{formatCurrency(summary.totalRevenue)}</p>
+                        <p className="text-gray-400 text-xs uppercase font-bold">Total Revenue</p>
+                        <p className="text-xl font-bold font-mono">{formatCurrency(summary.totalRevenue)}</p>
                     </div>
                 </div>
 
-                <div className="bg-surface border border-white/10 rounded-2xl p-6 flex items-center gap-4">
-                    <div className="p-4 bg-blue-500/20 rounded-xl text-blue-500">
-                        <Users className="w-8 h-8" />
+                <div className="bg-surface border border-white/10 rounded-2xl p-5 flex items-center gap-3">
+                    <div className="p-3 bg-blue-500/20 rounded-xl text-blue-500">
+                        <Users className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="text-gray-400 text-sm uppercase font-bold">Total Sessions</p>
-                        <p className="text-2xl font-bold font-mono">{summary.totalSessions}</p>
+                        <p className="text-gray-400 text-xs uppercase font-bold">Total Sesi</p>
+                        <p className="text-xl font-bold font-mono">{summary.totalSessions}</p>
                     </div>
                 </div>
 
-                <div className="bg-surface border border-white/10 rounded-2xl p-6 flex items-center gap-4">
-                    <div className="p-4 bg-purple-500/20 rounded-xl text-purple-500">
-                        <TrendingUp className="w-8 h-8" />
+                <div className="bg-surface border border-yellow-500/20 rounded-2xl p-5 flex items-center gap-3">
+                    <div className="p-3 bg-yellow-500/20 rounded-xl text-yellow-400">
+                        <Ticket className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="text-gray-400 text-sm uppercase font-bold">Avg. / Session</p>
-                        <p className="text-2xl font-bold font-mono">{formatCurrency(summary.avgRevenue)}</p>
+                        <p className="text-gray-400 text-xs uppercase font-bold">Online Booking</p>
+                        <p className="text-xl font-bold font-mono text-yellow-400">{summary.onlineCount}</p>
+                    </div>
+                </div>
+
+                <div className="bg-surface border border-white/10 rounded-2xl p-5 flex items-center gap-3">
+                    <div className="p-3 bg-purple-500/20 rounded-xl text-purple-500">
+                        <TrendingUp className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-gray-400 text-xs uppercase font-bold">Walk-in</p>
+                        <p className="text-xl font-bold font-mono">{summary.walkinCount}</p>
                     </div>
                 </div>
             </div>
@@ -307,6 +324,7 @@ export default function ReportsPage() {
                             <tr className="text-gray-400 border-b border-white/10 text-sm uppercase">
                                 <th className="p-4">Date</th>
                                 <th className="p-4">Station</th>
+                                <th className="p-4">Sumber</th>
                                 <th className="p-4">Type</th>
                                 <th className="p-4">Payment</th>
                                 <th className="p-4 text-right">Amount</th>
@@ -326,6 +344,22 @@ export default function ReportsPage() {
                                             <span className="text-xs text-gray-500">{new Date(s.end_time).toLocaleTimeString()}</span>
                                         </td>
                                         <td className="p-4 font-bold">{s.stations?.name}</td>
+                                        <td className="p-4">
+                                            {s.booking_id ? (
+                                                <div>
+                                                    <span className="px-2 py-1 rounded text-xs uppercase font-bold bg-yellow-500/20 text-yellow-400 flex items-center gap-1 w-fit">
+                                                        <Ticket className="w-3 h-3" /> Online
+                                                    </span>
+                                                    {s.bookings?.nickname && (
+                                                        <span className="text-xs text-gray-500 mt-0.5 block">{s.bookings.nickname}</span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="px-2 py-1 rounded text-xs uppercase font-bold bg-gray-500/20 text-gray-400">
+                                                    Walk-in
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="p-4">
                                             <span className={`px-2 py-1 rounded text-xs uppercase font-bold ${s.type === 'rental' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'
                                                 }`}>
@@ -376,6 +410,24 @@ export default function ReportsPage() {
                                         <span className="text-gray-400">Station</span>
                                         <span className="font-bold">{selectedSession.stations?.name || 'Unknown'}</span>
                                     </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-400">Sumber</span>
+                                        <span className={`font-bold text-sm px-2 py-0.5 rounded ${selectedSession.booking_id ? 'text-yellow-400 bg-yellow-500/20' : 'text-gray-400 bg-white/10'}`}>
+                                            {selectedSession.booking_id ? '🎫 Online Booking' : 'Walk-in'}
+                                        </span>
+                                    </div>
+                                    {selectedSession.bookings?.booking_code && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Kode Booking</span>
+                                            <span className="font-mono font-bold text-yellow-400">{selectedSession.bookings.booking_code}</span>
+                                        </div>
+                                    )}
+                                    {selectedSession.bookings?.nickname && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Nama Customer</span>
+                                            <span className="font-bold">{selectedSession.bookings.nickname}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Tipe Sesi</span>
                                         <span className="font-bold uppercase">{selectedSession.type}</span>

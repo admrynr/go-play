@@ -61,8 +61,14 @@ export async function POST(request: Request) {
             targetPage = pageByTenant;
         }
 
+        // Auto-sync logo_text: use logoText only if it's an explicit custom override
+        // (different from business name). Otherwise always follow businessName.
+        const resolvedLogoText = (logoText && logoText !== (businessName || targetTenant.business_name))
+            ? logoText
+            : businessName || targetTenant.business_name;
+
         if (targetPage) {
-            // UPDATE existing page - always keep slug synced with tenant username
+            // UPDATE existing page
             const { data, error } = await supabase
                 .from('pages')
                 .update({
@@ -70,7 +76,7 @@ export async function POST(request: Request) {
                     business_name: businessName || targetTenant.business_name,
                     whatsapp_number: whatsappNumber || '',
                     address: address || '',
-                    logo_text: logoText || businessName || targetTenant.business_name,
+                    logo_text: resolvedLogoText,
                     logo_url: logoUrl || null,
                     theme_color: themeColor || '#003791',
                     template_id: templateId || targetPage.template_id,
@@ -107,7 +113,7 @@ export async function POST(request: Request) {
                 business_name: businessName || targetTenant.business_name,
                 whatsapp_number: whatsappNumber || '',
                 address: address || '',
-                logo_text: logoText || businessName || targetTenant.business_name,
+                logo_text: resolvedLogoText,
                 logo_url: logoUrl || null,
                 theme_color: themeColor || '#003791',
                 template_id: templateId || null,

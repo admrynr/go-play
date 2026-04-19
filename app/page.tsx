@@ -14,16 +14,16 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white overflow-x-hidden font-sans">
 
-      {/* â”€â”€ Navbar â”€â”€ */}
+      {/* ── Navbar ── */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+        <div className="container mx-auto px-4 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center">
-            <Image src="/logo.svg" alt="TimeStation Logo" width={160} height={40} className="object-contain" />
+            <Image src="/logo.svg" alt="TimeStation Logo" width={160} height={40} className="object-contain w-28 sm:w-40" />
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Link
               href="/login"
-              className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 transition-colors text-sm font-medium"
+              className="px-4 sm:px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 transition-colors text-xs sm:text-sm font-medium whitespace-nowrap"
             >
               Login
             </Link>
@@ -31,7 +31,7 @@ export default function Home() {
               href={WA_LINK}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 py-2 rounded-full bg-primary hover:bg-primary/90 text-white font-bold shadow-[0_0_20px_rgba(0,55,145,0.5)] transition-all text-sm"
+              className="px-4 sm:px-6 py-2 rounded-full bg-primary hover:bg-primary/90 text-white font-bold shadow-[0_0_20px_rgba(0,55,145,0.5)] transition-all text-xs sm:text-sm whitespace-nowrap"
             >
               Request Demo
             </a>

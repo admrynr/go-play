@@ -42,8 +42,23 @@ export default function PreviewStationsClient({ stations, activeSessions, statio
             </div>
 
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {stations.map((station) => {
-                    const session = activeSessions[station.id];
+                {stations.map((station, index) => {
+                    let session = activeSessions[station.id];
+                    let confirmedBk: any = null;
+
+                    // Mock data for realism in preview
+                    if (index === 0) {
+                        session = { type: 'timer', start_time: new Date(now.getTime() - 40 * 60000).toISOString(), duration_minutes: 60 };
+                    } else if (index === 1) {
+                        session = { type: 'open', start_time: new Date(now.getTime() - 110 * 60000).toISOString(), duration_minutes: 0 };
+                    } else if (index === 2) {
+                        session = null;
+                        confirmedBk = {
+                            nickname: 'Budi (Preview)',
+                            booking_code: 'GP-BDI-882',
+                            start_time: new Date(now.getTime() + 15 * 60000).toISOString()
+                        };
+                    }
                     const isActive = !!session;
                     const rateConfig = rates[station.type] || { hourly: 0 };
 
@@ -109,9 +124,19 @@ export default function PreviewStationsClient({ stations, activeSessions, statio
                                 <div>
                                     <h3 className="font-bold text-lg">{station.name}</h3>
                                     <div className="flex items-center gap-2">
-                                        <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold ${isActive ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-gray-400'}`}>
-                                            {statusLabel}
+                                        <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-white/10 text-gray-400">
+                                            {station.type}
                                         </span>
+                                        {isActive && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-green-500/20 text-green-400">
+                                                {statusLabel}
+                                            </span>
+                                        )}
+                                        {!isActive && confirmedBk && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-yellow-500/20 text-yellow-400">
+                                                BOOKED
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -156,27 +181,63 @@ export default function PreviewStationsClient({ stations, activeSessions, statio
                                 </div>
                             )}
 
-                            {/* Timer / Cost Info */}
+                            {/* Info Box */}
                             <div className="bg-black/20 rounded-xl p-4 mb-4">
-                                <div className="flex justify-between items-end mb-2">
-                                    <div>
-                                        <p className="text-xs text-gray-400 mb-1">{isActive ? (session.type === 'rental' ? 'Due In' : 'Time') : 'Status'}</p>
-                                        <p className={`text-2xl font-mono font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
-                                            {timeDisplay}
-                                        </p>
+                                {isActive ? (
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-xs text-gray-400 mb-1">{session.type === 'rental' ? 'Due In' : 'Time'}</p>
+                                            <p className={`text-2xl font-mono font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
+                                                {timeDisplay}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
+                                            <p className="text-lg font-bold text-primary">{costDisplay}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
-                                        <p className="text-lg font-bold text-primary">{costDisplay}</p>
+                                ) : confirmedBk ? (
+                                    // BOOKED
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Booking</p>
+                                            <span className="text-xs font-mono font-bold text-yellow-400">{confirmedBk.booking_code}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Nama</p>
+                                            <p className="text-sm font-semibold">{confirmedBk.nickname}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Datang</p>
+                                            <p className="text-sm font-semibold">{new Date(confirmedBk.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-xs text-gray-400">Batas check-in</p>
+                                            <p className="text-sm font-semibold text-yellow-400">
+                                                {new Date(new Date(confirmedBk.start_time).getTime() + 5 * 60_000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    // IDLE
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-xs text-gray-400 mb-1">Status</p>
+                                            <p className="text-2xl font-mono font-bold text-gray-500">IDLE</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 mb-1">Est. Bill</p>
+                                            <p className="text-lg font-bold text-primary">Rp --</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* No action buttons in preview */}
                             <div className="grid gap-2">
                                 <div className="w-full bg-white/5 text-gray-500 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
                                     <Monitor className="w-4 h-4" />
-                                    {isActive ? 'Stop & Checkout' : 'Start Session'}
+                                    {isActive ? 'Stop & Checkout' : confirmedBk ? 'Aktifkan Booking' : 'Start Session'}
                                     <span className="text-xs ml-1">(Preview)</span>
                                 </div>
                             </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Globe, ArrowLeft, Plus, ExternalLink, Trash2, Edit, X, Loader2, Mail, Lock, Building2 } from 'lucide-react';
+import { Globe, ArrowLeft, Plus, ExternalLink, Trash2, Edit, X, Loader2, Mail, Lock, Building2, Copy, CheckCheck, ShieldCheck, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -12,6 +12,8 @@ export default function WebsitesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+    const [filter, setFilter] = useState<'all' | 'claimed' | 'unclaimed'>('all');
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -52,6 +54,13 @@ export default function WebsitesPage() {
         } catch (err) {
             setUsernameStatus('idle');
         }
+    };
+
+    const handleCopyPreviewLink = async (slug: string, tenantId: string) => {
+        const url = `${window.location.origin}/preview/${slug}`;
+        await navigator.clipboard.writeText(url);
+        setCopiedId(tenantId);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
     const handleDelete = async (tenantId: string, username: string) => {
@@ -115,6 +124,28 @@ export default function WebsitesPage() {
                             <p className="text-gray-400 text-sm">Manage rental owners and their websites</p>
                         </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${filter === 'all' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Semua ({tenants.length})
+                        </button>
+                        <button
+                            onClick={() => setFilter('claimed')}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1 ${filter === 'claimed' ? 'bg-green-500/20 text-green-400' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Claimed ({tenants.filter(t => t.is_claimed).length})
+                        </button>
+                        <button
+                            onClick={() => setFilter('unclaimed')}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1 ${filter === 'unclaimed' ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            Unclaimed ({tenants.filter(t => !t.is_claimed).length})
+                        </button>
+                    </div>
                     <button
                         onClick={() => {
                             setFormData({ email: '', password: '', username: '', businessName: '' });
@@ -151,70 +182,92 @@ export default function WebsitesPage() {
                                 <tr>
                                     <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Business Name</th>
                                     <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Account (Username / Email)</th>
+                                    <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider">Status</th>
                                     <th className="p-4 font-bold text-xs uppercase text-gray-400 tracking-wider text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {tenants.map((tenant) => {
-                                    const page = tenant.pages?.[0]; // Assume 1 page per tenant
-                                    return (
-                                        <tr key={tenant.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-white/5 rounded flex items-center justify-center overflow-hidden">
-                                                        <Globe className="w-4 h-4 text-gray-600" />
+                                {tenants
+                                    .filter(t => filter === 'all' ? true : filter === 'claimed' ? t.is_claimed : !t.is_claimed)
+                                    .map((tenant) => {
+                                        const page = tenant.pages?.[0];
+                                        const isCopied = copiedId === tenant.id;
+                                        return (
+                                            <tr key={tenant.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-white/5 rounded flex items-center justify-center overflow-hidden">
+                                                            <Globe className="w-4 h-4 text-gray-600" />
+                                                        </div>
+                                                        <span className="font-bold">{tenant.business_name || 'New Rental'}</span>
                                                     </div>
-                                                    <span className="font-bold">{tenant.business_name || 'New Rental'}</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 font-mono text-sm leading-none">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-primary font-bold">@{tenant.username}</span>
-                                                    <span className="text-gray-400 text-xs">{tenant.email}</span>
-                                                    {page && <span className="text-[10px] text-gray-500">/{page.slug}</span>}
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    {page && (
-                                                        <>
-                                                            <a
-                                                                href={`/${page.slug}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
-                                                                title="View Live"
-                                                            >
-                                                                <ExternalLink className="w-4 h-4" />
-                                                            </a>
-                                                            <Link
-                                                                href={`/builder?id=${page.id}`}
-                                                                className="p-2 text-blue-400 hover:text-blue-300 transition-colors rounded-lg hover:bg-blue-500/10"
-                                                                title="Edit Website (Builder)"
-                                                            >
-                                                                <Globe className="w-4 h-4" />
-                                                            </Link>
-                                                        </>
+                                                </td>
+                                                <td className="p-4 font-mono text-sm leading-none">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-primary font-bold">@{tenant.username}</span>
+                                                        <span className="text-gray-400 text-xs">{tenant.email}</span>
+                                                        {page && <span className="text-[10px] text-gray-500">/{page.slug}</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    {tenant.is_claimed ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-500/15 text-green-400 border border-green-500/20">
+                                                            <ShieldCheck className="w-3 h-3" /> Claimed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
+                                                            <Clock className="w-3 h-3" /> Unclaimed
+                                                        </span>
                                                     )}
-                                                    <Link
-                                                        href={`/admin/tenants/${page?.id}/edit`} // Keep using page ID for edit routes if they exist
-                                                        className="p-2 text-yellow-400 hover:text-yellow-300 transition-colors rounded-lg hover:bg-yellow-500/10"
-                                                        title="Edit Tenant Credentials"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleDelete(tenant.id, tenant.username)}
-                                                        className="p-2 text-red-400 hover:text-red-300 transition-colors rounded-lg hover:bg-red-500/10"
-                                                        title="Delete Whole Tenant"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                        {page && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleCopyPreviewLink(page.slug, tenant.id)}
+                                                                    className={`p-2 transition-colors rounded-lg ${isCopied ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                                                    title="Copy Preview Link"
+                                                                >
+                                                                    {isCopied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                                                </button>
+                                                                <a
+                                                                    href={`/${page.slug}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                                                                    title="View Live"
+                                                                >
+                                                                    <ExternalLink className="w-4 h-4" />
+                                                                </a>
+                                                                <Link
+                                                                    href={`/builder?id=${page.id}`}
+                                                                    className="p-2 text-blue-400 hover:text-blue-300 transition-colors rounded-lg hover:bg-blue-500/10"
+                                                                    title="Edit Website (Builder)"
+                                                                >
+                                                                    <Globe className="w-4 h-4" />
+                                                                </Link>
+                                                            </>
+                                                        )}
+                                                        <Link
+                                                            href={`/admin/tenants/${page?.id}/edit`}
+                                                            className="p-2 text-yellow-400 hover:text-yellow-300 transition-colors rounded-lg hover:bg-yellow-500/10"
+                                                            title="Edit Tenant Credentials"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Link>
+                                                        <button
+                                                            onClick={() => handleDelete(tenant.id, tenant.username)}
+                                                            className="p-2 text-red-400 hover:text-red-300 transition-colors rounded-lg hover:bg-red-500/10"
+                                                            title="Delete Whole Tenant"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                             </tbody>
                         </table>
                     </div>

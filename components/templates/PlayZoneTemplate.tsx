@@ -162,14 +162,25 @@ export default function PlayZoneTemplate({
                     </nav>
 
                     <div className="hidden md:block">
-                        <button
-                            onClick={() => openWhatsApp("Saya mau booking meja")}
-                            className="relative px-6 py-3 font-bold text-white rounded-xl overflow-hidden group"
-                        >
-                            <div className="absolute inset-0 theme-gradient-bg opacity-100 group-hover:opacity-90 transition-opacity"></div>
-                            <div className="absolute inset-0 theme-gradient-bg blur-lg opacity-50"></div>
-                            <span className="relative z-10">Booking Sekarang</span>
-                        </button>
+                        {slug ? (
+                            <Link
+                                href={`/${slug}/booking`}
+                                className="relative px-6 py-3 font-bold text-white rounded-xl overflow-hidden group block"
+                            >
+                                <div className="absolute inset-0 theme-gradient-bg opacity-100 group-hover:opacity-90 transition-opacity"></div>
+                                <div className="absolute inset-0 theme-gradient-bg blur-lg opacity-50"></div>
+                                <span className="relative z-10">Booking Sekarang</span>
+                            </Link>
+                        ) : (
+                            <button
+                                onClick={() => openWhatsApp("Saya mau booking meja")}
+                                className="relative px-6 py-3 font-bold text-white rounded-xl overflow-hidden group"
+                            >
+                                <div className="absolute inset-0 theme-gradient-bg opacity-100 group-hover:opacity-90 transition-opacity"></div>
+                                <div className="absolute inset-0 theme-gradient-bg blur-lg opacity-50"></div>
+                                <span className="relative z-10">Booking Sekarang</span>
+                            </button>
+                        )}
                     </div>
 
                     {/* Mobile Menu Toggle */}
@@ -205,12 +216,22 @@ export default function PlayZoneTemplate({
                             ))}
                         </nav>
                         <div className="mt-auto mb-10">
-                            <button
-                                onClick={() => openWhatsApp("Saya mau booking meja")}
-                                className="w-full py-4 px-6 font-bold text-white rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600"
-                            >
-                                Booking Sekarang
-                            </button>
+                            {slug ? (
+                                <Link
+                                    href={`/${slug}/booking`}
+                                    className="w-full py-4 px-6 font-bold text-white rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 block text-center"
+                                    onClick={toggleMenu}
+                                >
+                                    Booking Sekarang
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={() => openWhatsApp("Saya mau booking meja")}
+                                    className="w-full py-4 px-6 font-bold text-white rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600"
+                                >
+                                    Booking Sekarang
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 )}

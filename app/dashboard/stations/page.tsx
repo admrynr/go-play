@@ -577,6 +577,7 @@ export default function StationsPage() {
             duration_minutes: Math.round((new Date(bk.end_time).getTime() - Date.now()) / 60_000),
             type: 'timer',
             status: 'active',
+            booking_id: bk.id,
         });
         await supabase.from('stations').update({ status: 'active' }).eq('id', bk.station_id);
         await supabase.from('bookings').update({ status: 'active' }).eq('id', bk.id);

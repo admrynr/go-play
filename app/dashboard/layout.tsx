@@ -21,6 +21,7 @@ import { usePathname, useRouter } from 'next/navigation';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [userEmail, setUserEmail] = useState('');
+    const [businessName, setBusinessName] = useState('GO-PLAY');
     const [pageId, setPageId] = useState<string | null>(null);
     const pathname = usePathname();
     const router = useRouter();
@@ -38,12 +39,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             // Check if user has a rental page
             const { data: page } = await supabase
                 .from('pages')
-                .select('id')
+                .select('id, business_name, logo_text')
                 .eq('owner_id', user.id)
                 .single();
 
             if (page) {
                 setPageId(page.id);
+                setBusinessName(page.logo_text || page.business_name || 'GO-PLAY');
             }
         };
         checkUser();
@@ -73,8 +75,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }`}
             >
                 <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                    <Link href="/" className="font-heading font-bold text-2xl text-primary">
-                        GO-PLAY
+                    <Link href="/" className="font-heading font-bold text-2xl text-primary truncate max-w-[160px]" title={businessName}>
+                        {businessName}
                     </Link>
                     <button onClick={() => setSidebarOpen(false)} className="md:hidden">
                         <X className="w-6 h-6" />
@@ -115,8 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex-1 flex flex-col min-h-screen">
                 {/* Mobile Header */}
                 <header className="md:hidden p-4 bg-surface border-b border-white/10 flex justify-between items-center">
-                    <Link href="/" className="font-heading font-bold text-xl text-primary">
-                        GO-PLAY
+                    <Link href="/" className="font-heading font-bold text-xl text-primary truncate max-w-[180px]" title={businessName}>
+                        {businessName}
                     </Link>
                     <button onClick={() => setSidebarOpen(true)}>
                         <Menu className="w-6 h-6" />

@@ -95,12 +95,21 @@ export default function StoryBrandTemplate({
                     </nav>
 
                     <div className="hidden md:block">
-                        <button
-                            onClick={() => openWhatsApp("Saya mau booking meja")}
-                            className="bg-primary hover:bg-primary/80 text-white font-bold py-2.5 px-6 rounded-xl transition-all hover:glow-box shadow-lg shadow-primary/20"
-                        >
-                            Booking Meja
-                        </button>
+                        {slug ? (
+                            <Link
+                                href={`/${slug}/booking`}
+                                className="bg-primary hover:bg-primary/80 text-white font-bold py-2.5 px-6 rounded-xl transition-all hover:glow-box shadow-lg shadow-primary/20 block"
+                            >
+                                Booking Meja
+                            </Link>
+                        ) : (
+                            <button
+                                onClick={() => openWhatsApp("Saya mau booking meja")}
+                                className="bg-primary hover:bg-primary/80 text-white font-bold py-2.5 px-6 rounded-xl transition-all hover:glow-box shadow-lg shadow-primary/20"
+                            >
+                                Booking Meja
+                            </button>
+                        )}
                     </div>
 
                     {/* Mobile Menu Toggle */}
@@ -136,12 +145,22 @@ export default function StoryBrandTemplate({
                             ))}
                         </nav>
                         <div className="flex flex-col gap-4 mt-auto mb-10">
-                            <button
-                                onClick={() => openWhatsApp("Saya mau booking meja")}
-                                className="bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl w-full shadow-lg shadow-primary/20"
-                            >
-                                Booking Meja
-                            </button>
+                            {slug ? (
+                                <Link
+                                    href={`/${slug}/booking`}
+                                    className="bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl w-full shadow-lg shadow-primary/20 text-center block"
+                                    onClick={toggleMenu}
+                                >
+                                    Booking Meja
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={() => openWhatsApp("Saya mau booking meja")}
+                                    className="bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl w-full shadow-lg shadow-primary/20"
+                                >
+                                    Booking Meja
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 )}
