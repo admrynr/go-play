@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { LayoutTemplate, Globe, LogOut, User, Plus, Upload } from 'lucide-react';
+import { LayoutTemplate, Globe, LogOut, User, Plus, Upload, Plug } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Actions */}
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-3 gap-6">
                     <Link
                         href="/admin/templates"
                         className="bg-surface border border-white/10 rounded-2xl p-8 hover:bg-white/5 transition-colors group"
@@ -111,6 +111,20 @@ export default function AdminDashboard() {
                             Manage Tenants
                         </h2>
                         <p className="text-gray-400">Create and manage rental owners</p>
+                    </Link>
+
+                    <Link
+                        href="/admin/smart-plug"
+                        className="bg-surface border border-white/10 rounded-2xl p-8 hover:bg-white/5 transition-colors group relative overflow-hidden"
+                    >
+                        <div className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                            Experimental
+                        </div>
+                        <Plug className="w-12 h-12 text-yellow-400 mb-4" />
+                        <h2 className="text-2xl font-bold mb-2 group-hover:text-yellow-400 transition-colors">
+                            Smart Plug
+                        </h2>
+                        <p className="text-gray-400">Control Lavio smart plug via Tuya IoT</p>
                     </Link>
                 </div>
 

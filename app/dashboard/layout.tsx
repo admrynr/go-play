@@ -13,7 +13,8 @@ import {
     X,
     CreditCard,
     BarChart3,
-    LayoutTemplate
+    LayoutTemplate,
+    Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -23,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [userEmail, setUserEmail] = useState('');
     const [businessName, setBusinessName] = useState('GO-PLAY');
     const [pageId, setPageId] = useState<string | null>(null);
+    const [role, setRole] = useState<'owner' | 'admin_rental' | null>(null);
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
@@ -36,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }
             setUserEmail(user.email || '');
 
-            // Check if user has a rental page
+            // Check if user has a rental page (Owner)
             const { data: page } = await supabase
                 .from('pages')
                 .select('id, business_name, logo_text')
@@ -44,8 +46,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 .single();
 
             if (page) {
+                setRole('owner');
                 setPageId(page.id);
                 setBusinessName(page.logo_text || page.business_name || 'GO-PLAY');
+            } else {
+                // Check if user is an admin rental
+                const { data: adminData } = await supabase
+                    .from('tenant_users')
+                    .select('tenant_id, role')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                if (adminData) {
+                    setRole(adminData.role as 'admin_rental');
+                    // Fetch the page for this tenant
+                    const { data: adminPage } = await supabase
+                        .from('pages')
+                        .select('id, business_name, logo_text')
+                        .eq('tenant_id', adminData.tenant_id)
+                        .single();
+                        
+                    if (adminPage) {
+                        setPageId(adminPage.id);
+                        setBusinessName(adminPage.logo_text || adminPage.business_name || 'GO-PLAY');
+                    }
+                }
             }
         };
         checkUser();
@@ -65,6 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { name: 'Reports', href: '/dashboard/reports', icon: Monitor }, // Using Monitor temporary if BarChart3 fails, but let's try to stick to existing icons if needed or just use LayoutDashboard
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
         { name: 'Page Builder', href: '/builder', icon: LayoutTemplate },
+        ...(role === 'owner' ? [{ name: 'User Management', href: '/dashboard/users', icon: Users }] : []),
     ];
 
     return (

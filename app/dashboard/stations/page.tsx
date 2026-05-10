@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle } from 'lucide-react';
+import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle, Plug, Wifi, WifiOff, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 
@@ -28,6 +28,9 @@ export default function StationsPage() {
     const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null); // Station ID
     const [showQRModal, setShowQRModal] = useState<any | null>(null);
     const [showActivateModal, setShowActivateModal] = useState<any | null>(null); // booking obj
+    const [showIoTModal, setShowIoTModal] = useState<any | null>(null); // station obj for IoT connect
+    const [iotDeviceInput, setIotDeviceInput] = useState(''); // device ID input
+    const [iotConnecting, setIotConnecting] = useState(false);
 
     // Page Info
     const [pageId, setPageId] = useState<string | null>(null);
@@ -289,6 +292,76 @@ export default function StationsPage() {
         }
     };
 
+    // --- IoT Smart Plug Control ---
+    const triggerIoT = async (stationId: string, action: 'on' | 'off') => {
+        // Find station to check if it has IoT device
+        const station = stations.find(s => s.id === stationId);
+        if (!station?.iot_device_id) return; // No IoT device, skip silently
+
+        try {
+            await fetch('/api/dashboard/iot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stationId, action }),
+            });
+        } catch (err) {
+            console.warn(`IoT ${action} failed for station ${stationId}:`, err);
+        }
+    };
+
+    const handleConnectIoT = async () => {
+        if (!showIoTModal || !iotDeviceInput.trim()) return;
+        setIotConnecting(true);
+        try {
+            const res = await fetch('/api/dashboard/iot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    stationId: showIoTModal.id,
+                    action: 'connect',
+                    deviceId: iotDeviceInput.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            toast.success(`IoT Connected: ${data.deviceName}`, {
+                description: data.isOnline ? 'Device is online' : 'Device is offline',
+            });
+            setShowIoTModal(null);
+            setIotDeviceInput('');
+            fetchData();
+        } catch (err: any) {
+            toast.error('Failed to connect IoT device', { description: err.message });
+        } finally {
+            setIotConnecting(false);
+        }
+    };
+
+    const handleDisconnectIoT = async () => {
+        if (!showIoTModal) return;
+        setIotConnecting(true);
+        try {
+            const res = await fetch('/api/dashboard/iot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    stationId: showIoTModal.id,
+                    action: 'disconnect',
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            toast.success('IoT Device disconnected');
+            setShowIoTModal(null);
+            setIotDeviceInput('');
+            fetchData();
+        } catch (err: any) {
+            toast.error('Failed to disconnect', { description: err.message });
+        } finally {
+            setIotConnecting(false);
+        }
+    };
+
     // --- Session Start ---
 
     const handleStartSession = async (e: React.FormEvent) => {
@@ -327,6 +400,7 @@ export default function StationsPage() {
                 if (!res.ok) throw new Error(result.error);
 
                 toast.success('Voucher Redeemed!', { description: 'Session Started.' });
+                triggerIoT(showStartModal, 'on'); // IoT: Turn ON smart plug
                 setShowStartModal(null);
                 setVoucherCode('');
                 fetchData();
@@ -377,6 +451,7 @@ export default function StationsPage() {
                     toast.error('Failed to start session');
                 } else {
                     toast.success('Session started successfully');
+                    triggerIoT(showStartModal, 'on'); // IoT: Turn ON smart plug
                     setShowStartModal(null);
                     fetchData();
                 }
@@ -499,6 +574,9 @@ export default function StationsPage() {
         // Update Station
         await supabase.from('stations').update({ status: 'idle' }).eq('id', showCheckoutModal);
 
+        // IoT: Turn OFF smart plug
+        if (showCheckoutModal) triggerIoT(showCheckoutModal, 'off');
+
         if (error) {
             toast.error('Error completing transaction');
             setIsProcessingPayment(false);
@@ -581,6 +659,7 @@ export default function StationsPage() {
         });
         await supabase.from('stations').update({ status: 'active' }).eq('id', bk.station_id);
         await supabase.from('bookings').update({ status: 'active' }).eq('id', bk.id);
+        triggerIoT(bk.station_id, 'on'); // IoT: Turn ON smart plug
         toast.success(`Sesi booking ${bk.booking_code} (${bk.nickname}) diaktifkan!`);
         setShowActivateModal(null);
         setActivateWa('');
@@ -628,6 +707,8 @@ export default function StationsPage() {
                     // Trigger checkout for this station
                     const stationId = request.session?.station_id;
                     if (stationId) {
+                        // IoT: Turn OFF immediately when stop is approved
+                        triggerIoT(stationId, 'off');
                         // Find station type
                         const station = stations.find(s => s.id === stationId);
                         if (station) {
@@ -746,40 +827,15 @@ export default function StationsPage() {
                     return (
                         <div key={station.id} className={`bg-surface border rounded-2xl p-6 relative group transition-all ${isActive ? 'border-primary shadow-lg shadow-primary/10' : 'border-white/10 hover:border-primary/50'
                             }`}>
-                            <div className="absolute top-4 right-4 flex gap-2">
-                                <a
-                                    href={`/${pageSlug}/station/${station.id}`}
-                                    target="_blank"
-                                    className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Open Player Interface"
-                                >
-                                    <Monitor className="w-4 h-4" />
-                                </a>
-                                <button
-                                    onClick={() => setShowQRModal(station)}
-                                    className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Show QR"
-                                >
-                                    <QrCode className="w-4 h-4" />
-                                </button>
-                                {!isActive && (
-                                    <button
-                                        onClick={() => handleDeleteStation(station.id, station.name)}
-                                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className={`p-4 rounded-xl ${station.type === 'PS5' ? 'bg-blue-600/20 text-blue-400' : 'bg-indigo-600/20 text-indigo-400'}`}>
-                                    <Monitor className="w-8 h-8" />
+                            {/* Station Header */}
+                            <div className="flex items-start gap-3 mb-4">
+                                <div className={`p-3 rounded-xl flex-shrink-0 ${station.type === 'PS5' ? 'bg-blue-600/20 text-blue-400' : 'bg-indigo-600/20 text-indigo-400'}`}>
+                                    <Monitor className="w-7 h-7" />
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">{station.name}</h3>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        {/* Type label always shown */}
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-lg truncate">{station.name}</h3>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {/* Type label */}
                                         <span className="text-xs px-2 py-0.5 rounded-full uppercase font-bold bg-white/10 text-gray-400">
                                             {station.type}
                                         </span>
@@ -794,8 +850,48 @@ export default function StationsPage() {
                                                 BOOKED
                                             </span>
                                         )}
+                                        {station.iot_device_id && (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-emerald-500/15 text-emerald-400 flex items-center gap-0.5">
+                                                <Plug className="w-3 h-3" /> IoT
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Action Buttons Row */}
+                            <div className="flex items-center gap-1 mb-4 -mt-1">
+                                <a
+                                    href={`/${pageSlug}/station/${station.id}`}
+                                    target="_blank"
+                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    title="Open Player Interface"
+                                >
+                                    <Monitor className="w-3.5 h-3.5" />
+                                </a>
+                                <button
+                                    onClick={() => { setShowIoTModal(station); setIotDeviceInput(station.iot_device_id || ''); }}
+                                    className={`p-1.5 rounded-lg transition-colors ${station.iot_device_id ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
+                                    title={station.iot_device_id ? 'IoT Connected' : 'Connect IoT Device'}
+                                >
+                                    <Plug className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    onClick={() => setShowQRModal(station)}
+                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    title="Show QR"
+                                >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                </button>
+                                {!isActive && (
+                                    <button
+                                        onClick={() => handleDeleteStation(station.id, station.name)}
+                                        className="p-1.5 text-red-400/60 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ml-auto"
+                                        title="Delete Station"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
                             </div>
 
                             {/* Booking Requests Alert */}
@@ -1480,6 +1576,102 @@ export default function StationsPage() {
                             <Download className="w-5 h-5" />
                             Download Image
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* IoT Connect Modal */}
+            {showIoTModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-sm p-6">
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-lg font-bold flex items-center gap-2">
+                                <Plug className="w-5 h-5 text-yellow-400" />
+                                IoT Smart Plug
+                            </h2>
+                            <button onClick={() => { setShowIoTModal(null); setIotDeviceInput(''); }}>
+                                <X className="w-5 h-5 text-gray-400 hover:text-white" />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-4">Station: <span className="text-white font-semibold">{showIoTModal.name}</span></p>
+
+                        {showIoTModal.iot_device_id ? (
+                            /* Connected state */
+                            <div className="space-y-4">
+                                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
+                                        <span className="text-green-400 font-bold text-sm">Connected</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 font-mono break-all">{showIoTModal.iot_device_id}</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => triggerIoT(showIoTModal.id, 'on')}
+                                        className="bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/40 font-bold py-2.5 rounded-xl text-sm transition-all"
+                                    >
+                                        Test ON
+                                    </button>
+                                    <button
+                                        onClick={() => triggerIoT(showIoTModal.id, 'off')}
+                                        className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/40 font-bold py-2.5 rounded-xl text-sm transition-all"
+                                    >
+                                        Test OFF
+                                    </button>
+                                </div>
+
+                                <button
+                                    onClick={handleDisconnectIoT}
+                                    disabled={iotConnecting}
+                                    className="w-full bg-white/5 hover:bg-red-500/10 text-gray-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 font-semibold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    <Unplug className="w-4 h-4" />
+                                    {iotConnecting ? 'Disconnecting...' : 'Disconnect Device'}
+                                </button>
+                            </div>
+                        ) : (
+                            /* Disconnected state */
+                            <div className="space-y-4">
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-gray-600" />
+                                        <span className="text-gray-500 font-bold text-sm">No Device Connected</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">Hubungkan Tuya smart plug untuk otomatis ON/OFF saat billing.</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Tuya Device ID</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. a3ab411ba8b644dd7d1sps"
+                                        className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-yellow-500 focus:outline-none font-mono text-sm"
+                                        value={iotDeviceInput}
+                                        onChange={(e) => setIotDeviceInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleConnectIoT()}
+                                    />
+                                    <p className="text-[11px] text-gray-600 mt-1">Dapatkan Device ID dari Tuya IoT Platform → Devices</p>
+                                </div>
+
+                                <button
+                                    onClick={handleConnectIoT}
+                                    disabled={iotConnecting || !iotDeviceInput.trim()}
+                                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+                                >
+                                    {iotConnecting ? (
+                                        <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                    ) : (
+                                        <Plug className="w-5 h-5" />
+                                    )}
+                                    {iotConnecting ? 'Connecting...' : 'Connect Device'}
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="mt-4 bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300/70">
+                            <p>💡 Smart plug akan otomatis <strong>ON</strong> saat session dimulai dan <strong>OFF</strong> saat checkout selesai.</p>
+                        </div>
                     </div>
                 </div>
             )}
