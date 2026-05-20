@@ -145,12 +145,12 @@ export default function ReportsPage() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-heading font-bold">Reports</h1>
                     <p className="text-gray-400">Financial overview and analytics</p>
                 </div>
-                <div className="flex bg-white/5 rounded-lg p-1">
+                <div className="flex bg-white/5 rounded-lg p-1 sm:self-auto self-start">
                     {['today', 'week', 'month'].map((f) => (
                         <button
                             key={f}
@@ -307,11 +307,11 @@ export default function ReportsPage() {
 
             {/* Recent Transactions */}
             <div className="bg-surface border border-white/10 rounded-2xl p-6">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
                     <h2 className="text-xl font-bold">Recent Transactions</h2>
                     <button
                         onClick={handleExport}
-                        className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold"
+                        className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold sm:self-auto self-start"
                     >
                         <Download className="w-4 h-4" />
                         Export to Excel

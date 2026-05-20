@@ -70,7 +70,7 @@ export default function KitchenPage() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-heading font-bold">Kitchen & Orders</h1>
                     <p className="text-gray-400">Incoming food and drink orders</p>

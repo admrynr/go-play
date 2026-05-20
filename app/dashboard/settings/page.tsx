@@ -217,8 +217,8 @@ export default function SettingsPage() {
                         )}
 
                         <div className="space-y-4">
-                            {/* Header */}
-                            <div className="grid grid-cols-12 gap-4 text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 px-4">
+                            {/* Header - Hidden on mobile, grid on desktop */}
+                            <div className="hidden md:grid grid-cols-12 gap-4 text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 px-4">
                                 <div className="col-span-3">Console Type</div>
                                 <div className="col-span-3 text-right">Hourly (On-Site)</div>
                                 <div className="col-span-3 text-right">Half Day (12h)</div>
@@ -232,62 +232,71 @@ export default function SettingsPage() {
                             )}
 
                             {Object.keys(rates).map(type => (
-                                <div key={type} className="grid grid-cols-12 gap-4 items-center bg-white/5 p-4 rounded-xl border border-white/5 group relative">
+                                <div key={type} className="flex flex-col md:grid md:grid-cols-12 gap-4 items-start md:items-center bg-white/5 p-4 rounded-xl border border-white/5 group relative w-full">
 
-                                    {/* Delete Button (hover) */}
+                                    {/* Delete Button */}
                                     <button
                                         type="button"
                                         onClick={() => handleDeleteType(type)}
-                                        className="absolute -left-3 top-1/2 -translate-y-1/2 bg-red-500 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                                        className="absolute -right-2 -top-2 md:-left-3 md:top-1/2 md:-translate-y-1/2 bg-red-500 text-white p-1.5 rounded-full shadow-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:scale-110 z-10"
                                         title="Delete Type"
                                     >
-                                        <Trash2 className="w-3 h-3" />
+                                        <Trash2 className="w-3.5 h-3.5 md:w-3 md:h-3" />
                                     </button>
 
-                                    <div className="col-span-3 flex items-center gap-3">
+                                    <div className="w-full md:col-span-3 flex items-center gap-3 mb-2 md:mb-0">
                                         <div className="p-2 bg-primary/20 rounded-lg text-primary">
                                             <Gamepad2 className="w-5 h-5" />
                                         </div>
-                                        <span className="font-bold text-white truncate" title={type}>{type}</span>
+                                        <span className="font-bold text-white truncate text-base md:text-sm" title={type}>{type}</span>
                                     </div>
 
                                     {/* Hourly */}
-                                    <div className="col-span-3 relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="500"
-                                            className="w-full bg-background border border-white/10 rounded-lg py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                                            value={rates[type]?.hourly ?? 0}
-                                            onChange={(e) => handleRateChange(type, 'hourly', e.target.value)}
-                                        />
+                                    <div className="w-full md:col-span-3">
+                                        <label className="block md:hidden text-xs text-gray-400 mb-1 font-semibold uppercase">Hourly (On-Site)</label>
+                                        <div className="relative w-full">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="500"
+                                                className="w-full bg-background border border-white/10 rounded-lg py-2.5 md:py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                                                value={rates[type]?.hourly ?? 0}
+                                                onChange={(e) => handleRateChange(type, 'hourly', e.target.value)}
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Half Day */}
-                                    <div className="col-span-3 relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="5000"
-                                            className="w-full bg-background border border-white/10 rounded-lg py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                                            value={rates[type]?.halfDay ?? 0}
-                                            onChange={(e) => handleRateChange(type, 'halfDay', e.target.value)}
-                                        />
+                                    <div className="w-full md:col-span-3">
+                                        <label className="block md:hidden text-xs text-gray-400 mb-1 font-semibold uppercase">Half Day (12h)</label>
+                                        <div className="relative w-full">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="5000"
+                                                className="w-full bg-background border border-white/10 rounded-lg py-2.5 md:py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                                                value={rates[type]?.halfDay ?? 0}
+                                                onChange={(e) => handleRateChange(type, 'halfDay', e.target.value)}
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Daily */}
-                                    <div className="col-span-3 relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="5000"
-                                            className="w-full bg-background border border-white/10 rounded-lg py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                                            value={rates[type]?.daily ?? 0}
-                                            onChange={(e) => handleRateChange(type, 'daily', e.target.value)}
-                                        />
+                                    <div className="w-full md:col-span-3">
+                                        <label className="block md:hidden text-xs text-gray-400 mb-1 font-semibold uppercase">Full Day (24h)</label>
+                                        <div className="relative w-full">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Rp</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="5000"
+                                                className="w-full bg-background border border-white/10 rounded-lg py-2.5 md:py-2 pl-8 pr-2 text-right text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                                                value={rates[type]?.daily ?? 0}
+                                                onChange={(e) => handleRateChange(type, 'daily', e.target.value)}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             ))}

@@ -315,20 +315,57 @@ export default function StationsPage() {
         }
     };
 
-    // --- IR Blaster TV Control ---
+    // --- Smart IR Blaster TV Control ---
+    // Checks real-time power via Smart Plug before toggling IR.
+    // If TV is already in the desired state, skips the IR command.
+    const POWER_THRESHOLD = 10; // Watts — above this = TV is ON
+
+    const checkStationPower = async (stationId: string): Promise<number> => {
+        try {
+            const res = await fetch(`/api/dashboard/iot/monitor?stationId=${stationId}`);
+            const data = await res.json();
+            if (data.success && data.watts !== undefined) {
+                return data.watts; // Returns watts, or -1 if no smart plug / error
+            }
+        } catch { /* silent */ }
+        return -1; // Unknown
+    };
+
     const triggerIR = async (stationId: string, action: 'on' | 'off') => {
         // Find station to check if it has IR blaster config
         const station = stations.find(s => s.id === stationId);
         if (!station?.ir_infrared_id || !station?.ir_remote_id) return; // No IR, skip silently
 
         try {
+            // Smart validation: if Smart Plug is configured, check current power state
+            if (station.smart_plug_id) {
+                const watts = await checkStationPower(stationId);
+
+                if (watts >= 0) { // -1 means unavailable, skip validation
+                    const tvIsOn = watts > POWER_THRESHOLD;
+
+                    if (action === 'on' && tvIsOn) {
+                        console.log(`[SmartIR] Station "${station.name}": TV already ON (${watts}W), skipping IR toggle`);
+                        toast.info(`TV "${station.name}" sudah menyala (${watts}W)`, { description: 'IR toggle di-skip.' });
+                        return; // Skip — TV is already on
+                    }
+
+                    if (action === 'off' && !tvIsOn) {
+                        console.log(`[SmartIR] Station "${station.name}": TV already OFF (${watts}W), skipping IR toggle`);
+                        toast.info(`TV "${station.name}" sudah mati (${watts}W)`, { description: 'IR toggle di-skip.' });
+                        return; // Skip — TV is already off
+                    }
+                }
+            }
+
+            // Send IR command (toggle power)
             await fetch('/api/dashboard/iot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stationId, action }),
             });
             
-            // Validate power state 5 seconds after command
+            // Post-toggle validation: refresh power data after 5 seconds
             if (station.smart_plug_id) {
                 setTimeout(fetchPowerData, 5000);
             }
@@ -827,12 +864,12 @@ export default function StationsPage() {
     return (
         <div>
             {/* Header */}
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-heading font-bold">Stations</h1>
                     <p className="text-gray-400">Manage your consoles and screens</p>
                 </div>
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-4 items-center sm:self-auto self-start">
                     <button
                         onClick={() => setShowAddModal(true)}
                         className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all"
@@ -916,11 +953,15 @@ export default function StationsPage() {
                                                 BOOKED
                                             </span>
                                         )}
-                                        {station.ir_infrared_id && station.ir_remote_id && (
-                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-orange-500/15 text-orange-400 flex items-center gap-0.5">
+                                        {station.smart_plug_id ? (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-indigo-500/15 text-indigo-400 flex items-center gap-0.5" title="IoT Power + IR Enabled">
+                                                <Zap className="w-3 h-3 animate-pulse" /> IoT
+                                            </span>
+                                        ) : (station.ir_infrared_id && station.ir_remote_id) ? (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-orange-500/15 text-orange-400 flex items-center gap-0.5" title="IR Control Only">
                                                 <Zap className="w-3 h-3" /> IR
                                             </span>
-                                        )}
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>

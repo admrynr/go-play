@@ -129,14 +129,14 @@ export default function MenuPage() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-heading font-bold">Menu & F&B</h1>
                     <p className="text-gray-400">Manage your food and beverages</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
-                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all"
+                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all sm:self-auto self-start"
                 >
                     <Plus className="w-5 h-5" />
                     Add Item

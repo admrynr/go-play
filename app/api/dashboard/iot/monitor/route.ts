@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getBatchDeviceStatus } from '@/lib/tuya';
+import { getBatchDeviceStatus, getDeviceStatus } from '@/lib/tuya';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,16 +9,51 @@ const supabase = createClient(
 
 /**
  * GET /api/dashboard/iot/monitor
- * Fetches power status of all smart plugs connected to stations via Batch API
- * to prevent quota exhaustion.
+ * 
+ * Two modes:
+ * 1. Batch mode (pageId): Fetches power status of ALL smart plugs for a page.
+ *    Used for background polling every 5 minutes.
+ * 
+ * 2. Single mode (stationId): Fetches real-time power of ONE station's smart plug.
+ *    Used for transactional validation before IR toggle (e.g. is TV already on?).
+ *    Returns { success, watts: number }
  */
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const pageId = searchParams.get('pageId');
+        const stationId = searchParams.get('stationId');
 
+        // ─── Single Station Mode ───
+        if (stationId) {
+            const { data: station, error } = await supabase
+                .from('stations')
+                .select('id, smart_plug_id')
+                .eq('id', stationId)
+                .single();
+
+            if (error || !station?.smart_plug_id) {
+                // No smart plug configured — return -1 meaning "unknown / not available"
+                return NextResponse.json({ success: true, watts: -1 });
+            }
+
+            const tuyaRes = await getDeviceStatus(station.smart_plug_id);
+
+            if (!tuyaRes.success) {
+                console.error('Single device status failed:', tuyaRes.msg);
+                return NextResponse.json({ success: true, watts: -1 });
+            }
+
+            const statusArray = tuyaRes.result || [];
+            const powerStatus = statusArray.find((s: any) => s.code === 'cur_power');
+            const watts = powerStatus !== undefined ? (powerStatus.value as number) / 10 : -1;
+
+            return NextResponse.json({ success: true, watts });
+        }
+
+        // ─── Batch Mode (existing) ───
         if (!pageId) {
-            return NextResponse.json({ error: 'pageId required' }, { status: 400 });
+            return NextResponse.json({ error: 'pageId or stationId required' }, { status: 400 });
         }
 
         // Fetch stations with smart plugs
