@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -25,7 +24,7 @@ async function getOwnerTenantId(supabase: any) {
 
 export async function GET(request: Request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = await createServerClient();
         const { tenantId, error } = await getOwnerTenantId(supabase);
         
         if (error) {
@@ -61,7 +60,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = await createServerClient();
         const { tenantId, error } = await getOwnerTenantId(supabase);
         
         if (error) {
@@ -142,7 +141,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = await createServerClient();
         const { tenantId, error } = await getOwnerTenantId(supabase);
         
         if (error) {

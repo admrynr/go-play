@@ -37,15 +37,33 @@ export async function tuyaReq(method: string, path: string, body?: object) {
     return res.json();
 }
 
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    // Use the known IR blaster ID to test batch API
-    const deviceIds = searchParams.get('ids') || 'a38583401e85956854rxai';
+    const ids = searchParams.get('ids');
     
     try {
+        let deviceIdsStr = ids;
+        if (!deviceIdsStr) {
+            // fetch from DB
+            const { data } = await supabase.from('stations').select('id, page_id, smart_plug_id').not('smart_plug_id', 'is', null);
+            if (data && data.length > 0) {
+                deviceIdsStr = data.map(d => d.smart_plug_id).join(',');
+                return Response.json({ debug_db: data });
+            }
+        }
+        
+        if (!deviceIdsStr) return Response.json({ error: 'no smart plugs found in DB' });
+
         // Test standard batch status API
-        const result = await tuyaReq('GET', `/v1.0/devices/status?device_ids=${deviceIds}`);
-        return Response.json(result);
+        const result = await tuyaReq('GET', `/v1.0/devices/status?device_ids=${deviceIdsStr}`);
+        return Response.json({ deviceIdsStr, result });
     } catch (e: any) {
         return Response.json({ error: e.message });
     }

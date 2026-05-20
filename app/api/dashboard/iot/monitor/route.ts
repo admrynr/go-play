@@ -48,16 +48,16 @@ export async function GET(request: Request) {
         // Map the results back to stations
         const powerData: Record<string, number> = {};
         
-        // Tuya batch result format is usually an array of objects
-        const devicesStatus = tuyaRes.result || [];
+        // Tuya batch result format: { result: { "deviceId1": [{code: "cur_power", value: 120}], "deviceId2": [...] } }
+        const devicesStatusMap = tuyaRes.result || {};
         
         stations.forEach(station => {
             if (!station.smart_plug_id) return;
             
-            const deviceObj = devicesStatus.find((d: any) => d.id === station.smart_plug_id);
-            if (deviceObj && deviceObj.status) {
+            const statusArray = devicesStatusMap[station.smart_plug_id];
+            if (statusArray && Array.isArray(statusArray)) {
                 // Find cur_power in the status array
-                const powerStatus = deviceObj.status.find((s: any) => s.code === 'cur_power');
+                const powerStatus = statusArray.find((s: any) => s.code === 'cur_power');
                 if (powerStatus !== undefined) {
                     // power is usually returned as 1/10th of a Watt in Tuya API (e.g. 120 = 12W)
                     powerData[station.id] = (powerStatus.value as number) / 10;
