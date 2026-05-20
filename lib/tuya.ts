@@ -131,6 +131,17 @@ export async function getDeviceStatus(deviceId: string) {
 }
 
 /**
+ * Get status of multiple Tuya devices at once (Batch).
+ * Very useful for fetching power data of many smart plugs without hitting quota limits.
+ * @param deviceIds Array of device IDs, max 20-50 per request
+ */
+export async function getBatchDeviceStatus(deviceIds: string[]) {
+    if (!deviceIds || deviceIds.length === 0) return { result: [], success: true };
+    const idsParam = deviceIds.join(',');
+    return tuyaRequest('GET', `/v1.0/devices/status?device_ids=${idsParam}`);
+}
+
+/**
  * Get device info (including online status).
  */
 export async function getDeviceInfo(deviceId: string) {
@@ -149,4 +160,72 @@ export async function sendDeviceCommand(
     commands: Array<{ code: string; value: any }>
 ) {
     return tuyaRequest('POST', `/v1.0/devices/${deviceId}/commands`, { commands });
+}
+
+// ============================================================
+// IR Blaster (Universal Infrared) Functions
+// ============================================================
+
+/**
+ * Send a key command to a TV via IR blaster.
+ * Tries standard key first, falls back to raw key if standard fails.
+ * 
+ * @param infraredId - Tuya IR blaster device ID (physical device)
+ * @param remoteId - Tuya paired remote ID (virtual remote for the TV)
+ * @param key - Standard key name (e.g. "power", "volume_up", "volume_down", "mute")
+ * 
+ * Standard API: POST /v1.0/infrareds/{id}/remotes/{rid}/command { key }
+ * Raw API:      POST /v1.0/infrareds/{id}/remotes/{rid}/raw/command { raw_key }
+ */
+export async function sendIRCommand(
+    infraredId: string,
+    remoteId: string,
+    key: string
+) {
+    // Map standard key names to raw_key IDs (from Tuya pairing rules)
+    const rawKeyMap: Record<string, number> = {
+        'power': 1,
+    };
+
+    // Try standard command first
+    const result = await tuyaRequest(
+        'POST',
+        `/v1.0/infrareds/${infraredId}/remotes/${remoteId}/command`,
+        { key }
+    );
+
+    if (result.success) return result;
+
+    // Fallback to raw command
+    const rawKey = rawKeyMap[key];
+    if (rawKey !== undefined) {
+        console.log(`IR standard "${key}" failed (${result.msg}), trying raw_key ${rawKey}...`);
+        return tuyaRequest(
+            'POST',
+            `/v1.0/infrareds/${infraredId}/remotes/${remoteId}/raw/command`,
+            { raw_key: rawKey }
+        );
+    }
+
+    return result; // Return original error if no raw fallback
+}
+
+/**
+ * Get the list of remote controls bound to an IR blaster device.
+ * Useful for verifying paired remotes.
+ * 
+ * API: GET /v1.0/infrareds/{infrared_id}/remotes
+ */
+export async function getIRRemotes(infraredId: string) {
+    return tuyaRequest('GET', `/v1.0/infrareds/${infraredId}/remotes`);
+}
+
+/**
+ * Get the list of keys supported by a specific remote control.
+ * Returns both standard keys and non-standard keys.
+ * 
+ * API: GET /v1.0/infrareds/{infrared_id}/remotes/{remote_id}/keys
+ */
+export async function getIRRemoteKeys(infraredId: string, remoteId: string) {
+    return tuyaRequest('GET', `/v1.0/infrareds/${infraredId}/remotes/${remoteId}/keys`);
 }

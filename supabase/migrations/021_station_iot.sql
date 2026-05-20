@@ -1,6 +1,14 @@
--- Add IoT device ID column to stations table
--- This allows each station to be linked to a Tuya smart plug device
-ALTER TABLE stations ADD COLUMN IF NOT EXISTS iot_device_id TEXT;
+-- Rename old smart plug column to IR blaster columns
+-- Each station can be linked to an IR blaster + paired remote for TV control
 
--- Add a comment for documentation
-COMMENT ON COLUMN stations.iot_device_id IS 'Tuya IoT device ID for smart plug control. Nullable — stations without a smart plug work normally.';
+-- Drop old column if it exists
+ALTER TABLE stations DROP COLUMN IF EXISTS iot_device_id;
+
+-- IR Blaster: Tuya infrared device ID (physical device)
+ALTER TABLE stations ADD COLUMN IF NOT EXISTS ir_infrared_id TEXT;
+
+-- IR Remote: Tuya paired remote ID (virtual remote bound to a specific TV)
+ALTER TABLE stations ADD COLUMN IF NOT EXISTS ir_remote_id TEXT;
+
+COMMENT ON COLUMN stations.ir_infrared_id IS 'Tuya IR blaster device ID. One blaster can cover multiple stations/TVs.';
+COMMENT ON COLUMN stations.ir_remote_id IS 'Tuya paired remote ID for the TV connected to this station.';

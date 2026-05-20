@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle, Plug, Wifi, WifiOff, Unplug } from 'lucide-react';
+import { Plus, Monitor, Trash2, QrCode, X, Play, Square, Clock, Timer, AlertCircle, AlertTriangle, ShoppingBag, Calendar, CreditCard, Banknote, CheckCircle, Download, Ticket, MessageCircle, Tv, Unplug, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from "react-qr-code";
 
@@ -28,9 +28,12 @@ export default function StationsPage() {
     const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null); // Station ID
     const [showQRModal, setShowQRModal] = useState<any | null>(null);
     const [showActivateModal, setShowActivateModal] = useState<any | null>(null); // booking obj
-    const [showIoTModal, setShowIoTModal] = useState<any | null>(null); // station obj for IoT connect
-    const [iotDeviceInput, setIotDeviceInput] = useState(''); // device ID input
-    const [iotConnecting, setIotConnecting] = useState(false);
+    const [showIRModal, setShowIRModal] = useState<any | null>(null); // station obj for IR connect
+    const [irInfraredInput, setIrInfraredInput] = useState(''); // IR blaster device ID
+    const [irRemoteInput, setIrRemoteInput] = useState(''); // IR paired remote ID
+    const [smartPlugInput, setSmartPlugInput] = useState(''); // Smart Plug ID for power monitoring
+    const [irConnecting, setIrConnecting] = useState(false);
+    const [powerData, setPowerData] = useState<Record<string, number>>({}); // Station ID -> Power in Watts
 
     // Page Info
     const [pageId, setPageId] = useState<string | null>(null);
@@ -103,6 +106,26 @@ export default function StationsPage() {
         const interval = setInterval(checkNoShows, 60_000);
         return () => clearInterval(interval);
     }, [pageSlug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Power Monitoring Polling (Every 5 minutes to save Tuya Quota)
+    // Also exposes a function to manually trigger a fetch (e.g. 5s after IR command)
+    const fetchPowerData = async () => {
+        if (!pageId) return;
+        try {
+            const res = await fetch(`/api/dashboard/iot/monitor?pageId=${pageId}`);
+            const data = await res.json();
+            if (data.success && data.powerData) {
+                setPowerData(data.powerData);
+            }
+        } catch { /* silent */ }
+    };
+
+    useEffect(() => {
+        if (!pageId) return;
+        fetchPowerData(); // Initial fetch
+        const interval = setInterval(fetchPowerData, 5 * 60 * 1000); // Every 5 minutes
+        return () => clearInterval(interval);
+    }, [pageId]);
 
     // Set up real-time subscriptions
     useEffect(() => {
@@ -292,11 +315,11 @@ export default function StationsPage() {
         }
     };
 
-    // --- IoT Smart Plug Control ---
-    const triggerIoT = async (stationId: string, action: 'on' | 'off') => {
-        // Find station to check if it has IoT device
+    // --- IR Blaster TV Control ---
+    const triggerIR = async (stationId: string, action: 'on' | 'off') => {
+        // Find station to check if it has IR blaster config
         const station = stations.find(s => s.id === stationId);
-        if (!station?.iot_device_id) return; // No IoT device, skip silently
+        if (!station?.ir_infrared_id || !station?.ir_remote_id) return; // No IR, skip silently
 
         try {
             await fetch('/api/dashboard/iot', {
@@ -304,61 +327,95 @@ export default function StationsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stationId, action }),
             });
+            
+            // Validate power state 5 seconds after command
+            if (station.smart_plug_id) {
+                setTimeout(fetchPowerData, 5000);
+            }
         } catch (err) {
-            console.warn(`IoT ${action} failed for station ${stationId}:`, err);
+            console.warn(`IR ${action} failed for station ${stationId}:`, err);
         }
     };
 
-    const handleConnectIoT = async () => {
-        if (!showIoTModal || !iotDeviceInput.trim()) return;
-        setIotConnecting(true);
+    // --- Auto-Turn Off TV when Timer Expires ---
+    const prevRemainingRef = useRef<Record<string, number>>({});
+    useEffect(() => {
+        Object.values(activeSessions).forEach(session => {
+            if (session.type === 'timer' || session.type === 'rental') {
+                const start = new Date(session.start_time).getTime();
+                const durationMs = (session.duration_minutes || 0) * 60 * 1000;
+                const end = start + durationMs;
+                const remaining = end - now.getTime();
+
+                const prevRemaining = prevRemainingRef.current[session.id];
+                
+                // Only trigger if it just crossed the 0 line (was positive, now is <= 0)
+                if (prevRemaining !== undefined && prevRemaining > 0 && remaining <= 0) {
+                    // Time just expired! Turn off TV immediately.
+                    triggerIR(session.station_id, 'off');
+                }
+                
+                prevRemainingRef.current[session.id] = remaining;
+            }
+        });
+    }, [now, activeSessions]);
+
+    const handleConnectIR = async () => {
+        if (!showIRModal || (!irInfraredInput.trim() && !smartPlugInput.trim())) return;
+        setIrConnecting(true);
         try {
             const res = await fetch('/api/dashboard/iot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    stationId: showIoTModal.id,
+                    stationId: showIRModal.id,
                     action: 'connect',
-                    deviceId: iotDeviceInput.trim(),
+                    infraredId: irInfraredInput.trim(),
+                    remoteId: irRemoteInput.trim(),
+                    smartPlugId: smartPlugInput.trim(),
                 }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-            toast.success(`IoT Connected: ${data.deviceName}`, {
-                description: data.isOnline ? 'Device is online' : 'Device is offline',
+            toast.success('IoT devices connected successfully!', {
+                description: data.isOnline ? 'IR blaster online' : 'Connected',
             });
-            setShowIoTModal(null);
-            setIotDeviceInput('');
+            setShowIRModal(null);
+            setIrInfraredInput('');
+            setIrRemoteInput('');
+            setSmartPlugInput('');
             fetchData();
         } catch (err: any) {
-            toast.error('Failed to connect IoT device', { description: err.message });
+            toast.error('Failed to connect IoT', { description: err.message });
         } finally {
-            setIotConnecting(false);
+            setIrConnecting(false);
         }
     };
 
-    const handleDisconnectIoT = async () => {
-        if (!showIoTModal) return;
-        setIotConnecting(true);
+    const handleDisconnectIR = async () => {
+        if (!showIRModal) return;
+        setIrConnecting(true);
         try {
             const res = await fetch('/api/dashboard/iot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    stationId: showIoTModal.id,
+                    stationId: showIRModal.id,
                     action: 'disconnect',
                 }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-            toast.success('IoT Device disconnected');
-            setShowIoTModal(null);
-            setIotDeviceInput('');
+            toast.success('IoT devices disconnected');
+            setShowIRModal(null);
+            setIrInfraredInput('');
+            setIrRemoteInput('');
+            setSmartPlugInput('');
             fetchData();
         } catch (err: any) {
             toast.error('Failed to disconnect', { description: err.message });
         } finally {
-            setIotConnecting(false);
+            setIrConnecting(false);
         }
     };
 
@@ -400,7 +457,7 @@ export default function StationsPage() {
                 if (!res.ok) throw new Error(result.error);
 
                 toast.success('Voucher Redeemed!', { description: 'Session Started.' });
-                triggerIoT(showStartModal, 'on'); // IoT: Turn ON smart plug
+                triggerIR(showStartModal, 'on'); // IoT: Turn ON smart plug
                 setShowStartModal(null);
                 setVoucherCode('');
                 fetchData();
@@ -451,7 +508,7 @@ export default function StationsPage() {
                     toast.error('Failed to start session');
                 } else {
                     toast.success('Session started successfully');
-                    triggerIoT(showStartModal, 'on'); // IoT: Turn ON smart plug
+                    triggerIR(showStartModal, 'on'); // IoT: Turn ON smart plug
                     setShowStartModal(null);
                     fetchData();
                 }
@@ -524,9 +581,13 @@ export default function StationsPage() {
 
         const ordersTotal = orders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
 
+        const remainingMs = session.type !== 'open' ? (session.duration_minutes * 60 * 1000) - realTimeMs : 1;
+        const isTimerExpired = remainingMs <= 0;
+
         // 3. Set Data
         setCheckoutData({
             sessionId: session.id,
+            sessionType: session.type,
             rentalCost,
             ordersTotal,
             orders: orders || [],
@@ -534,10 +595,11 @@ export default function StationsPage() {
             stationType,
             startTime,
             endTime,
-            billedMins,
             realTimeMins,
+            billedMins,
             voucherCode: session.voucher_code,
-            voucherDeductionAmt
+            voucherDeductionAmt,
+            isTimerExpired
         });
         setPaymentMethod('cash');
         setCashReceived('');
@@ -574,8 +636,12 @@ export default function StationsPage() {
         // Update Station
         await supabase.from('stations').update({ status: 'idle' }).eq('id', showCheckoutModal);
 
-        // IoT: Turn OFF smart plug
-        if (showCheckoutModal) triggerIoT(showCheckoutModal, 'off');
+        // IoT: Turn OFF smart plug ONLY if:
+        // 1. It wasn't an open session (open session already turned OFF at confirmation)
+        // 2. The timer wasn't already expired (expired timers auto-turn off)
+        if (showCheckoutModal && checkoutData?.sessionType !== 'open' && !checkoutData?.isTimerExpired) {
+            triggerIR(showCheckoutModal, 'off');
+        }
 
         if (error) {
             toast.error('Error completing transaction');
@@ -659,7 +725,7 @@ export default function StationsPage() {
         });
         await supabase.from('stations').update({ status: 'active' }).eq('id', bk.station_id);
         await supabase.from('bookings').update({ status: 'active' }).eq('id', bk.id);
-        triggerIoT(bk.station_id, 'on'); // IoT: Turn ON smart plug
+        triggerIR(bk.station_id, 'on'); // IoT: Turn ON smart plug
         toast.success(`Sesi booking ${bk.booking_code} (${bk.nickname}) diaktifkan!`);
         setShowActivateModal(null);
         setActivateWa('');
@@ -708,7 +774,7 @@ export default function StationsPage() {
                     const stationId = request.session?.station_id;
                     if (stationId) {
                         // IoT: Turn OFF immediately when stop is approved
-                        triggerIoT(stationId, 'off');
+                        triggerIR(stationId, 'off');
                         // Find station type
                         const station = stations.find(s => s.id === stationId);
                         if (station) {
@@ -850,9 +916,9 @@ export default function StationsPage() {
                                                 BOOKED
                                             </span>
                                         )}
-                                        {station.iot_device_id && (
-                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-emerald-500/15 text-emerald-400 flex items-center gap-0.5">
-                                                <Plug className="w-3 h-3" /> IoT
+                                        {station.ir_infrared_id && station.ir_remote_id && (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full uppercase font-bold bg-orange-500/15 text-orange-400 flex items-center gap-0.5">
+                                                <Zap className="w-3 h-3" /> IR
                                             </span>
                                         )}
                                     </div>
@@ -870,11 +936,16 @@ export default function StationsPage() {
                                     <Monitor className="w-3.5 h-3.5" />
                                 </a>
                                 <button
-                                    onClick={() => { setShowIoTModal(station); setIotDeviceInput(station.iot_device_id || ''); }}
-                                    className={`p-1.5 rounded-lg transition-colors ${station.iot_device_id ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
-                                    title={station.iot_device_id ? 'IoT Connected' : 'Connect IoT Device'}
+                                    onClick={() => { 
+                                        setShowIRModal(station); 
+                                        setIrInfraredInput(station.ir_infrared_id || ''); 
+                                        setIrRemoteInput(station.ir_remote_id || ''); 
+                                        setSmartPlugInput(station.smart_plug_id || '');
+                                    }}
+                                    className={`p-1.5 rounded-lg transition-colors ${station.ir_infrared_id || station.smart_plug_id ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
+                                    title={station.ir_infrared_id || station.smart_plug_id ? 'IoT Connected' : 'Connect IoT Devices'}
                                 >
-                                    <Plug className="w-3.5 h-3.5" />
+                                    <Zap className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                     onClick={() => setShowQRModal(station)}
@@ -993,6 +1064,17 @@ export default function StationsPage() {
                                 </div>
                             )}
 
+                            {/* Power Monitoring / Fraud Alert */}
+                            {!isActive && powerData[station.id] !== undefined && powerData[station.id] > 10 && (
+                                <div className="mb-4 p-3 rounded-lg border border-red-500/50 bg-red-500/20 text-red-100 flex items-start gap-3 animate-pulse">
+                                    <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="font-bold text-red-400 text-sm">PENGGUNAAN ILEGAL!</p>
+                                        <p className="text-xs mt-1">TV menyala tanpa sesi aktif. Daya: {powerData[station.id]}W</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Info Box */}
                             <div className="bg-black/20 rounded-xl p-4 mb-4">
                                 {isActive ? (
@@ -1046,7 +1128,16 @@ export default function StationsPage() {
                             <div className="grid gap-2">
                                 {isActive ? (
                                     <button
-                                        onClick={() => handleOpenCheckout(station.id, station.type)}
+                                        onClick={() => {
+                                            if (session.type === 'open') {
+                                                if (confirm('Hentikan sesi open billing untuk \"' + station.name + '\"?\n\nTV akan dimatikan dan proses checkout dimulai.')) {
+                                                    triggerIR(station.id, 'off');
+                                                    handleOpenCheckout(station.id, station.type);
+                                                }
+                                            } else {
+                                                handleOpenCheckout(station.id, station.type);
+                                            }
+                                        }}
                                         className="w-full bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/50 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
                                     >
                                         <Square className="w-4 h-4 fill-current" />
@@ -1580,54 +1671,59 @@ export default function StationsPage() {
                 </div>
             )}
 
-            {/* IoT Connect Modal */}
-            {showIoTModal && (
+            {/* IR Blaster Connect Modal */}
+            {showIRModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-sm p-6">
                         <div className="flex justify-between items-center mb-2">
                             <h2 className="text-lg font-bold flex items-center gap-2">
-                                <Plug className="w-5 h-5 text-yellow-400" />
-                                IoT Smart Plug
+                                <Zap className="w-5 h-5 text-orange-400" />
+                                IoT Devices
                             </h2>
-                            <button onClick={() => { setShowIoTModal(null); setIotDeviceInput(''); }}>
+                            <button onClick={() => { setShowIRModal(null); setIrInfraredInput(''); setIrRemoteInput(''); setSmartPlugInput(''); }}>
                                 <X className="w-5 h-5 text-gray-400 hover:text-white" />
                             </button>
                         </div>
-                        <p className="text-sm text-gray-400 mb-4">Station: <span className="text-white font-semibold">{showIoTModal.name}</span></p>
+                        <p className="text-sm text-gray-400 mb-4">Station: <span className="text-white font-semibold">{showIRModal.name}</span></p>
 
-                        {showIoTModal.iot_device_id ? (
+                        {showIRModal.ir_infrared_id || showIRModal.smart_plug_id ? (
                             /* Connected state */
                             <div className="space-y-4">
-                                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-                                        <span className="text-green-400 font-bold text-sm">Connected</span>
+                                        <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
+                                        <span className="text-orange-400 font-bold text-sm">IoT Connected</span>
                                     </div>
-                                    <p className="text-xs text-gray-400 font-mono break-all">{showIoTModal.iot_device_id}</p>
+                                    <div className="space-y-1">
+                                        {showIRModal.ir_infrared_id && (
+                                            <>
+                                                <p className="text-xs text-gray-400">IR Blaster: <span className="font-mono text-gray-300">{showIRModal.ir_infrared_id}</span></p>
+                                                <p className="text-xs text-gray-400">IR Remote: <span className="font-mono text-gray-300">{showIRModal.ir_remote_id}</span></p>
+                                            </>
+                                        )}
+                                        {showIRModal.smart_plug_id && (
+                                            <p className="text-xs text-gray-400">Smart Plug: <span className="font-mono text-gray-300">{showIRModal.smart_plug_id}</span></p>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2">
+                                {showIRModal.ir_infrared_id && (
                                     <button
-                                        onClick={() => triggerIoT(showIoTModal.id, 'on')}
-                                        className="bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/40 font-bold py-2.5 rounded-xl text-sm transition-all"
+                                        onClick={() => triggerIR(showIRModal.id, 'on')}
+                                        className="w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/40 font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
                                     >
-                                        Test ON
+                                        <Tv className="w-4 h-4" />
+                                        Test Power Toggle
                                     </button>
-                                    <button
-                                        onClick={() => triggerIoT(showIoTModal.id, 'off')}
-                                        className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/40 font-bold py-2.5 rounded-xl text-sm transition-all"
-                                    >
-                                        Test OFF
-                                    </button>
-                                </div>
+                                )}
 
                                 <button
-                                    onClick={handleDisconnectIoT}
-                                    disabled={iotConnecting}
+                                    onClick={handleDisconnectIR}
+                                    disabled={irConnecting}
                                     className="w-full bg-white/5 hover:bg-red-500/10 text-gray-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 font-semibold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     <Unplug className="w-4 h-4" />
-                                    {iotConnecting ? 'Disconnecting...' : 'Disconnect Device'}
+                                    {irConnecting ? 'Disconnecting...' : 'Disconnect IoT'}
                                 </button>
                             </div>
                         ) : (
@@ -1636,41 +1732,65 @@ export default function StationsPage() {
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="w-2.5 h-2.5 rounded-full bg-gray-600" />
-                                        <span className="text-gray-500 font-bold text-sm">No Device Connected</span>
+                                        <span className="text-gray-500 font-bold text-sm">No IoT Devices Connected</span>
                                     </div>
-                                    <p className="text-xs text-gray-500">Hubungkan Tuya smart plug untuk otomatis ON/OFF saat billing.</p>
+                                    <p className="text-xs text-gray-500">Hubungkan IR blaster & Smart Plug untuk kontrol dan deteksi TV otomatis.</p>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Tuya Device ID</label>
+                                    <label className="block text-sm text-gray-400 mb-1">IR Blaster Device ID</label>
                                     <input
                                         type="text"
-                                        placeholder="e.g. a3ab411ba8b644dd7d1sps"
-                                        className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-yellow-500 focus:outline-none font-mono text-sm"
-                                        value={iotDeviceInput}
-                                        onChange={(e) => setIotDeviceInput(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleConnectIoT()}
+                                        placeholder="ID perangkat IR blaster"
+                                        className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-orange-500 focus:outline-none font-mono text-sm"
+                                        value={irInfraredInput}
+                                        onChange={(e) => setIrInfraredInput(e.target.value)}
                                     />
-                                    <p className="text-[11px] text-gray-600 mt-1">Dapatkan Device ID dari Tuya IoT Platform → Devices</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Remote ID (TV)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="ID remote yang sudah di-pair ke TV"
+                                        className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-orange-500 focus:outline-none font-mono text-sm"
+                                        value={irRemoteInput}
+                                        onChange={(e) => setIrRemoteInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleConnectIR()}
+                                    />
+                                    <p className="text-[11px] text-gray-600 mt-1">Tuya IoT Platform → IR Blaster → Remotes</p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Smart Plug Device ID (Opsional)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="ID perangkat Smart Plug (untuk monitor daya)"
+                                        className="w-full bg-background border border-white/10 rounded-xl p-3 focus:border-orange-500 focus:outline-none font-mono text-sm"
+                                        value={smartPlugInput}
+                                        onChange={(e) => setSmartPlugInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleConnectIR()}
+                                    />
+                                    <p className="text-[11px] text-gray-600 mt-1">Digunakan untuk deteksi penggunaan TV di luar sistem.</p>
                                 </div>
 
                                 <button
-                                    onClick={handleConnectIoT}
-                                    disabled={iotConnecting || !iotDeviceInput.trim()}
-                                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+                                    onClick={handleConnectIR}
+                                    disabled={irConnecting || (!irInfraredInput.trim() && !smartPlugInput.trim())}
+                                    className="w-full bg-orange-500 hover:bg-orange-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
                                 >
-                                    {iotConnecting ? (
+                                    {irConnecting ? (
                                         <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                                     ) : (
-                                        <Plug className="w-5 h-5" />
+                                        <Zap className="w-5 h-5" />
                                     )}
-                                    {iotConnecting ? 'Connecting...' : 'Connect Device'}
+                                    {irConnecting ? 'Connecting...' : 'Connect IoT Devices'}
                                 </button>
                             </div>
                         )}
 
-                        <div className="mt-4 bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300/70">
-                            <p>💡 Smart plug akan otomatis <strong>ON</strong> saat session dimulai dan <strong>OFF</strong> saat checkout selesai.</p>
+                        <div className="mt-4 bg-orange-500/5 border border-orange-500/20 rounded-lg p-3 text-xs text-orange-300/70">
+                            <p>⚡ TV akan otomatis <strong>Power ON</strong> saat session dimulai dan <strong>Power OFF</strong> saat checkout selesai via IR blaster.</p>
                         </div>
                     </div>
                 </div>
