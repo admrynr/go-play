@@ -109,6 +109,8 @@ export default function StationsPage() {
 
     // Power Monitoring Polling (Every 5 minutes to save Tuya Quota)
     // Also exposes a function to manually trigger a fetch (e.g. 5s after IR command)
+    const powerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     const fetchPowerData = async () => {
         if (!pageId) return;
         try {
@@ -120,11 +122,20 @@ export default function StationsPage() {
         } catch { /* silent */ }
     };
 
+    // Reset polling: immediate fetch + restart the 5-min interval from now
+    const resetPowerPolling = () => {
+        if (powerIntervalRef.current) clearInterval(powerIntervalRef.current);
+        fetchPowerData();
+        powerIntervalRef.current = setInterval(fetchPowerData, 5 * 60 * 1000);
+    };
+
     useEffect(() => {
         if (!pageId) return;
         fetchPowerData(); // Initial fetch
-        const interval = setInterval(fetchPowerData, 5 * 60 * 1000); // Every 5 minutes
-        return () => clearInterval(interval);
+        powerIntervalRef.current = setInterval(fetchPowerData, 5 * 60 * 1000);
+        return () => {
+            if (powerIntervalRef.current) clearInterval(powerIntervalRef.current);
+        };
     }, [pageId]);
 
     // Set up real-time subscriptions
@@ -322,52 +333,65 @@ export default function StationsPage() {
 
     const checkStationPower = async (stationId: string): Promise<number> => {
         try {
-            const res = await fetch(`/api/dashboard/iot/monitor?stationId=${stationId}`);
+            // Cache-bust to ensure fresh data from Tuya every time
+            const res = await fetch(
+                `/api/dashboard/iot/monitor?stationId=${stationId}&_t=${Date.now()}`,
+                { cache: 'no-store' }
+            );
             const data = await res.json();
+            console.log(`[SmartIR] Power check for ${stationId}:`, data);
             if (data.success && data.watts !== undefined) {
-                return data.watts; // Returns watts, or -1 if no smart plug / error
+                return data.watts;
             }
-        } catch { /* silent */ }
-        return -1; // Unknown
+        } catch (err) {
+            console.warn(`[SmartIR] Power check API failed for ${stationId}:`, err);
+        }
+        return -1;
     };
 
     const triggerIR = async (stationId: string, action: 'on' | 'off') => {
-        // Find station to check if it has IR blaster config
         const station = stations.find(s => s.id === stationId);
-        if (!station?.ir_infrared_id || !station?.ir_remote_id) return; // No IR, skip silently
+        if (!station?.ir_infrared_id || !station?.ir_remote_id) return;
 
         try {
-            // Smart validation: if Smart Plug is configured, check current power state
+            // Smart validation: check power state before toggling
             if (station.smart_plug_id) {
-                const watts = await checkStationPower(stationId);
+                let watts = await checkStationPower(stationId);
 
-                if (watts >= 0) { // -1 means unavailable, skip validation
+                // Fallback to cached powerData if real-time check failed
+                if (watts < 0 && powerData[stationId] !== undefined) {
+                    watts = powerData[stationId];
+                    console.log(`[SmartIR] Using cached power data: ${watts}W`);
+                }
+
+                if (watts >= 0) {
                     const tvIsOn = watts > POWER_THRESHOLD;
 
                     if (action === 'on' && tvIsOn) {
-                        console.log(`[SmartIR] Station "${station.name}": TV already ON (${watts}W), skipping IR toggle`);
+                        console.log(`[SmartIR] TV already ON (${watts}W), skip`);
                         toast.info(`TV "${station.name}" sudah menyala (${watts}W)`, { description: 'IR toggle di-skip.' });
-                        return; // Skip — TV is already on
+                        return;
                     }
 
                     if (action === 'off' && !tvIsOn) {
-                        console.log(`[SmartIR] Station "${station.name}": TV already OFF (${watts}W), skipping IR toggle`);
+                        console.log(`[SmartIR] TV already OFF (${watts}W), skip`);
                         toast.info(`TV "${station.name}" sudah mati (${watts}W)`, { description: 'IR toggle di-skip.' });
-                        return; // Skip — TV is already off
+                        setPowerData(prev => ({ ...prev, [stationId]: 0 }));
+                        return;
                     }
                 }
             }
 
-            // Send IR command (toggle power)
+            // Send IR command
             await fetch('/api/dashboard/iot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stationId, action }),
             });
-            
-            // Post-toggle validation: refresh power data after 5 seconds
-            if (station.smart_plug_id) {
-                setTimeout(fetchPowerData, 5000);
+
+            // Optimistic: clear power data immediately on 'off' so fraud alert goes away
+            if (action === 'off' && station.smart_plug_id) {
+                setPowerData(prev => ({ ...prev, [stationId]: 0 }));
             }
         } catch (err) {
             console.warn(`IR ${action} failed for station ${stationId}:`, err);
@@ -677,7 +701,7 @@ export default function StationsPage() {
         // 1. It wasn't an open session (open session already turned OFF at confirmation)
         // 2. The timer wasn't already expired (expired timers auto-turn off)
         if (showCheckoutModal && checkoutData?.sessionType !== 'open' && !checkoutData?.isTimerExpired) {
-            triggerIR(showCheckoutModal, 'off');
+            await triggerIR(showCheckoutModal, 'off');
         }
 
         if (error) {
@@ -811,7 +835,7 @@ export default function StationsPage() {
                     const stationId = request.session?.station_id;
                     if (stationId) {
                         // IoT: Turn OFF immediately when stop is approved
-                        triggerIR(stationId, 'off');
+                        await triggerIR(stationId, 'off');
                         // Find station type
                         const station = stations.find(s => s.id === stationId);
                         if (station) {
@@ -1169,10 +1193,10 @@ export default function StationsPage() {
                             <div className="grid gap-2">
                                 {isActive ? (
                                     <button
-                                        onClick={() => {
+                                        onClick={async () => {
                                             if (session.type === 'open') {
                                                 if (confirm('Hentikan sesi open billing untuk \"' + station.name + '\"?\n\nTV akan dimatikan dan proses checkout dimulai.')) {
-                                                    triggerIR(station.id, 'off');
+                                                    await triggerIR(station.id, 'off');
                                                     handleOpenCheckout(station.id, station.type);
                                                 }
                                             } else {
